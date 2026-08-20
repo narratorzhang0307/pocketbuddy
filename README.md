@@ -2,7 +2,7 @@
 
 > 跑一段路，识别一路自然，种下一棵由真实行动长成的树。
 
-Pocket Buddy 是以运动、恢复、营养和真实世界观察为主线的私人 Agent。用户只面对长期陪伴的角色 **Frost**；后台用可组合 Skill、轻量 Harness 和 Taskmaster，把目标变成可执行、可中断、可恢复、可验证的行动。
+Pocket Buddy 是以运动、恢复、营养和真实世界观察为主线的私人 Agent。用户只面对长期陪伴的角色 **Frost**；后台由两层 Taskmaster 协同，把目标和用户创造的 Skill 变成可执行、可中断、可恢复、可验证的行动。
 
 它不是“健身 App 加一个聊天框”，也不是把地图、瑜伽、营养和自然识别堆进菜单。同样安装 Pocket Buddy，不同用户可以装备不同 Skill、连接不同数据源，或在 **Skill Canvas** 中像搭积木一样创造工作流。个性化的不只是训练计划，而是每个人真正拥有的 **Agent 能力组合**。
 
@@ -10,11 +10,22 @@ Pocket Buddy 是以运动、恢复、营养和真实世界观察为主线的私�
 
 本仓库是供团队协作的代码快照，只保留当前产品需要的运动健康链路；不包含内部原始文档、真实 API 密钥、模型权重、APK 或早期非核心演示模块。
 
+## 两个 Taskmaster：产品技术核心
+
+| 核心 | 管什么 | 关键能力 |
+| --- | --- | --- |
+| **Agent Taskmaster / Frost Harness** | 目标与角色，即“谁来做” | 主 Agent 维持 Goal，调度专业子 Agent，处理追问、等待、委派、中断、恢复和停止 |
+| **Skill Taskmaster / Graph Runtime** | 步骤与执行，即“怎么做” | 把用户在 Skill Canvas 组合的能力积木结构化、校验并编译为 Skill Graph，可靠处理依赖、分支、暂停、重试、取消、Signal 和 Evidence |
+
+这不是两个名称相近的重复模块。Agent Taskmaster 让 Frost 能持续工作并协调多个 Agent；Skill Taskmaster 则让普通用户画出来的 Skill 不停留在 Demo 或流程图，而能被编译成真正运行的多步骤任务。
+
+健康事实和设备副作用由独立的 **Health Fact & Effect Boundary** 幂等提交。它是双层 Taskmaster 下方的安全边界，不作为第三种 Taskmaster 对外叙述。
+
 ## 完整产品文档
 
 [下载《Pocket Buddy 终极产品文档 v1.0》](docs/product/Pocket_Buddy_终极产品文档_v1.0.docx)
 
-这份 13 页团队基线统一了运动健康闭环、识动物/识植物/识鸟与虚拟种树、三类 Skill、Skill Canvas、Frost Harness、Skill Taskmaster、Health Taskmaster、安全边界、当前实现与后续路线图。
+这份 13 页团队基线统一了运动健康闭环、识动物/识植物/识鸟与虚拟种树、三类 Skill、Skill Canvas、Agent Taskmaster、Skill Taskmaster、健康事实边界、当前实现与后续路线图。
 
 ## 一次完整体验
 
@@ -30,23 +41,23 @@ Pocket Buddy 是以运动、恢复、营养和真实世界观察为主线的私�
 
 ![Pocket Buddy 产品闭环](docs/assets/product-loop.svg)
 
-- **Frost Harness 管目标**：接收 Goal 与 Context，决定继续、等待、追问、委派、完成或安全停止。
-- **Skill Taskmaster 跑图**：执行 Canvas 生成的 Skill Graph，处理依赖、分支、暂停、重试、取消和 Signal。
+- **Agent Taskmaster 管目标与角色**：接收 Goal 与 Context，调度专业 Agent，决定继续、等待、追问、委派、完成或安全停止。
+- **Skill Taskmaster 编译并跑图**：把 Canvas 组合的能力积木变成可执行 Skill Graph，处理依赖、分支、暂停、重试、取消和 Signal。
 - **Tool Runtime 执行能力**：在权限、审批和停止规则内调用地图、摄像头、模型、健康数据或设备。
-- **Health Taskmaster 交事实**：健康事实和设备副作用只能通过幂等 Effect 与 Health Event 提交。
+- **Health Fact & Effect Boundary 交事实**：健康事实和设备副作用只能通过幂等 Effect 与 Health Event 提交。
 - 结果、Signal 与 Evidence 回到 Frost，形成下一轮 Goal，并写入可追溯 Session Log 和长期记忆。
 
-- **Frost**：用户唯一面对的长期角色，负责理解目标、说明状态并交付最终结果。
-- **Harness**：Frost 的运行控制面，负责循环、工具、权限、日志、中断、等待、恢复和目标续行。
+- **Frost**：用户唯一面对的长期角色，也是 Agent Taskmaster 的主 Agent。
+- **Agent Taskmaster / Harness**：Frost 的目标级运行控制面，负责循环、专业 Agent 调度、权限、日志、中断、等待、恢复和目标续行。
 - **Skill Taskmaster**：声明式 Skill Graph 的执行内核，让用户在 Canvas 组合出的不同流程可以被可靠跑通。
-- **Health Taskmaster**：可靠执行内核，负责健康事实、Signal、Effect 与幂等提交，模型不能绕过它直接改写事实。
+- **Health Fact & Effect Boundary**：负责健康事实、Signal、Effect 与幂等提交，模型不能绕过它直接改写事实。
 - **专业 Agent**：处理需要持续判断或领域复核的任务，例如训练决策、恢复建议和营养分析。
 - **Skill**：可发现、装载、卸载和调用的能力单元，声明输入、输出、权限与证据要求。
 - **Tool / Model / Device**：真正执行地图、摄像头、健康数据查询或模型推理的底层能力。
 
 简单任务不必经过完整多 Agent 流程；复杂或高风险任务才升级给专业 Agent。这样既保留响应速度，也让重要决策可复核。
 
-## Frost：Model + Harness
+## Agent Taskmaster：Model + Frost Harness
 
 Qwen 等模型只负责提出候选下一步，真正让 Frost 可以持续行动、接受中途指令、等待设备、刷新恢复并安全停止的是轻量 Harness。Frost 不保存或展示模型隐藏思维链，只记录结构化决策、工具调用、结果和证据。
 
@@ -59,7 +70,7 @@ Qwen 等模型只负责提出候选下一步，真正让 Frost 可以持续行�
 | **Agent Loop** | 执行 Decision → Tool → Observation → 再决策，并限制 Step、Tool Call 与截止时间 | 多 Step 链路已接入 |
 | **Tool Runtime** | 校验输入与一次性审批凭据，处理超时、取消、结果校验和冻结 | 基础执行管线已接入；统一 Permission / Guard 管线仍在完善 |
 | **Goal Driver** | 只在空闲、已持久化、有预算且没有竞争输入时自动续行 | 持久 Goal、版本抢占与轮次预算已接入 |
-| **Health Taskmaster** | 提交 Task、Signal、Effect 和 Health Event，确保事实与副作用幂等 | 继续作为健康事实的唯一可靠执行边界 |
+| **Health Fact & Effect Boundary** | 提交 Task、Signal、Effect 和 Health Event，确保事实与副作用幂等 | 继续作为健康事实的唯一可靠执行边界 |
 | **Recovery / Projection** | 从日志恢复状态，并让 UI 展示当前 Goal、等待原因、证据与下一动作 | 已支持中断会话的保守恢复；完整自动恢复和行动 UI 仍在验证 |
 | **专业 Agent / Job** | 隔离长任务和专业上下文，只返回 Proposal、证据、风险与警告 | Provider 接口方向，尚非当前 MVP 依赖 |
 
@@ -69,7 +80,7 @@ Qwen 等模型只负责提出候选下一步，真正让 Frost 可以持续行�
 
 ### Frost 运动健康管家
 
-Frost 通过混合 Skill 路由和 Taskmaster 统一接收任务，管理确认门、执行记录、本地长期记忆与专业 Agent 交接。用户看到的是一个连续的人格，内部能力可以独立演进。
+Frost 作为 Agent Taskmaster 的主 Agent，通过混合 Skill 路由和 Harness 统一接收目标，管理确认门、执行记录、本地长期记忆与专业 Agent 交接。用户看到的是一个连续的人格，内部能力可以独立演进。
 
 ### Action Map
 
@@ -115,7 +126,7 @@ Frost 通过混合 Skill 路由和 Taskmaster 统一接收任务，管理确认�
 - **Skill Canvas**：用户可以自由拖动、连接和组合积木，先像 Sketch 或思维导图一样表达意图，不必先决定严格层级。
 - **结构化引擎**：把可能杂乱的草图一键整理成清晰层级，补齐输入输出，检查断线、循环、权限与错误分支。
 - **声明式 Skill 图**：Canvas 最终生成的机器可执行产物，可以保存、版本化、装载、卸载和分享。
-- **Skill Taskmaster / Graph Runtime**：按图的依赖顺序调度积木，传递数据，处理分支、暂停、重试、取消、Signal 与错误；涉及健康事实或设备副作用时再交给 Health Taskmaster。
+- **Skill Taskmaster / Graph Runtime**：按图的依赖顺序调度积木，传递数据，处理分支、暂停、重试、取消、Signal 与错误；涉及健康事实或设备副作用时再交给 Health Fact & Effect Boundary。
 - **通用 Renderer**：根据 Skill 图自动组合拍照、文本、选择、地图和结果卡片；需要强交互时再交给原生页面或 Web 沙箱。
 
 所有 Skill 最终应共享一套基础契约：
@@ -132,7 +143,7 @@ Frost 通过混合 Skill 路由和 Taskmaster 统一接收任务，管理确认�
 ### 仓库中已有
 
 - Frost Session Log、Inbox、Agent Loop、Tool Runtime、Goal Driver 与 Qwen 决策适配
-- Taskmaster、Skill Router、确认门、任务交接、Effect Ledger 和执行 Trace
+- Agent Taskmaster / Frost Harness 基线、Skill Router、确认门、任务交接、Effect Ledger 和执行 Trace
 - 原生 Skill 注册协议、权限声明与设备能力检查
 - Action Map、跑步路线会话和 GPS 轨迹逻辑
 - Her Motion 私有会话与本地摄像头兜底
@@ -221,7 +232,7 @@ npm run health:verify-connectors
 
 ```text
 src/app/                  产品界面、地图、Her Motion 与 Skill 页面
-frost-agent/              Frost 运行时、Taskmaster、路由、记忆与健康 Skill
+frost-agent/              Frost 运行时、双层 Taskmaster、路由、记忆与健康 Skill
 server/                   服务端 Qwen 与健康连接器桥接
 scripts/health/           健康连接器安装和 Qwen Skill 链路验证
 deploy/qwen3-4b-server/   Qwen3-4B 服务器部署与检查脚本

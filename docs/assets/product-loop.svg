@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="460" viewBox="0 0 1600 460" role="img" aria-labelledby="title desc">
   <title id="title">Pocket Buddy 产品闭环</title>
-  <desc id="desc">Frost 从目标与身体状态出发，经 Harness 评估风险，调用 Skill 或专业 Agent，再通过工具、模型与设备取得证据，最终复盘并进入下一轮目标。</desc>
+  <desc id="desc">Agent Taskmaster 从目标与身体状态出发，经 Frost Harness 评估风险，调用 Skill 或调度专业 Agent，再通过工具、模型与设备取得证据，最终复盘并进入下一轮目标。</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L0,6 L9,3 z" fill="#30443d"/>
@@ -23,8 +23,8 @@
   <text class="sub" x="140" y="242">Goal + Context</text>
 
   <rect class="node accent" x="300" y="175" width="220" height="88"/>
-  <text class="label" x="410" y="213">Frost + Harness</text>
-  <text class="sub" x="410" y="242">理解、规划与续行</text>
+  <text class="label" x="410" y="213">Agent Taskmaster</text>
+  <text class="sub" x="410" y="242">Frost Harness · 目标与角色</text>
 
   <polygon class="decision" points="670,145 780,219 670,293 560,219"/>
   <text class="label" x="670" y="212">风险与复杂度</text>
