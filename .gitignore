@@ -38,6 +38,7 @@ android/**/jniLibs/
 
 *.doc
 *.docx
+!docs/product/Pocket_Buddy_终极产品文档_v1.0.docx
 *.ppt
 *.pptx
 *.pdf
