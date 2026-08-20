@@ -1,10 +1,12 @@
 # Pocket Buddy
 
-> 一款以运动、恢复、营养与日常健康为主线，可以通过 Skill 组合成不同形态的私人 Agent。
+> 跑一段路，识别一路自然，种下一棵由真实行动长成的树。
 
-Pocket Buddy 不是“健身 App 加一个聊天框”。用户只需要面对一个长期陪伴的角色 **Frost**：它理解目标和身体状态，判断该直接调用 Skill，还是交给专业 Agent，再把权限、执行、证据与记忆串成一个可追溯的行动闭环。
+Pocket Buddy 是以运动、恢复、营养和真实世界观察为主线的私人 Agent。用户只面对长期陪伴的角色 **Frost**；后台用可组合 Skill、轻量 Harness 和 Taskmaster，把目标变成可执行、可中断、可恢复、可验证的行动。
 
-同样安装 Pocket Buddy，不同用户可以装备不同的 Skill、连接不同的数据源，并形成不同的陪伴方式。我们希望个性化的不只是训练计划，而是每个人实际拥有的 **Agent 能力组合**。
+它不是“健身 App 加一个聊天框”，也不是把地图、瑜伽、营养和自然识别堆进菜单。同样安装 Pocket Buddy，不同用户可以装备不同 Skill、连接不同数据源，或在 **Skill Canvas** 中像搭积木一样创造工作流。个性化的不只是训练计划，而是每个人真正拥有的 **Agent 能力组合**。
+
+产品以运动健康为核心，自然时刻作为真实行动中的轻量陪伴：识动物、识植物、识鸟和虚拟种树都必须绑定路线、时间或运动证据；低置信度允许返回 `unknown`，虚拟树不等同于现实植树承诺。
 
 本仓库是供团队协作的代码快照，只保留当前产品需要的运动健康链路；不包含内部原始文档、真实 API 密钥、模型权重、APK 或早期非核心演示模块。
 
@@ -14,18 +16,29 @@ Pocket Buddy 不是“健身 App 加一个聊天框”。用户只需要面对�
 
 这份 13 页团队基线统一了运动健康闭环、识动物/识植物/识鸟与虚拟种树、三类 Skill、Skill Canvas、Frost Harness、Skill Taskmaster、Health Taskmaster、安全边界、当前实现与后续路线图。
 
+## 一次完整体验
+
+1. Frost 汇总餐食、睡眠、疲劳、疼痛、天气、目标和可用时间，形成当天 Context。
+2. 用户装备现成 Skill，或在 Canvas 组合自己的“城市跑步观察”工作流。
+3. Her Motion 用连续帧与置信度门控完成热身和动作确认。
+4. Action Map 记录 GPS、阶段 Signal 和实际轨迹，必要时按规则重规划。
+5. 途中拍摄动物、植物或鸟类；模型返回候选、置信度和 `unknown`，不强行猜测。
+6. 运动完成后生成证据绑定的虚拟树、路线牌和自然路标。
+7. Frost 用 `evidence_ids` 生成复盘，写入记忆并决定下一步。
+
 ## 产品闭环
 
 ![Pocket Buddy 产品闭环](docs/assets/product-loop.svg)
 
-- Frost 接收目标与身体状态，形成当前 Goal。
-- Harness 评估风险与复杂度：低风险、单能力任务直接调用 Skill；复杂、模糊或高风险任务才委派专业 Agent。
-- Tool Runtime 在权限、审批和停止规则内调用工具、模型或设备。
-- Tool Result、设备 Signal 和证据回到 Frost；Health Taskmaster 只提交一次权威事实或副作用。
-- Frost 根据新观察继续下一步、询问用户、进入等待、安全停止或完成目标，并把结果写入可追溯记忆。
+- **Frost Harness 管目标**：接收 Goal 与 Context，决定继续、等待、追问、委派、完成或安全停止。
+- **Skill Taskmaster 跑图**：执行 Canvas 生成的 Skill Graph，处理依赖、分支、暂停、重试、取消和 Signal。
+- **Tool Runtime 执行能力**：在权限、审批和停止规则内调用地图、摄像头、模型、健康数据或设备。
+- **Health Taskmaster 交事实**：健康事实和设备副作用只能通过幂等 Effect 与 Health Event 提交。
+- 结果、Signal 与 Evidence 回到 Frost，形成下一轮 Goal，并写入可追溯 Session Log 和长期记忆。
 
 - **Frost**：用户唯一面对的长期角色，负责理解目标、说明状态并交付最终结果。
 - **Harness**：Frost 的运行控制面，负责循环、工具、权限、日志、中断、等待、恢复和目标续行。
+- **Skill Taskmaster**：声明式 Skill Graph 的执行内核，让用户在 Canvas 组合出的不同流程可以被可靠跑通。
 - **Health Taskmaster**：可靠执行内核，负责健康事实、Signal、Effect 与幂等提交，模型不能绕过它直接改写事实。
 - **专业 Agent**：处理需要持续判断或领域复核的任务，例如训练决策、恢复建议和营养分析。
 - **Skill**：可发现、装载、卸载和调用的能力单元，声明输入、输出、权限与证据要求。
@@ -69,6 +82,10 @@ Frost 通过混合 Skill 路由和 Taskmaster 统一接收任务，管理确认�
 ### 营养与健康数据
 
 提供餐食照片、包装食品、中国食品范围、恢复餐入口，以及 Running Coach、healthsync、MediaPipe、Section 11、OpenFoodFacts、Garmin 和 health-coach 的 Frost 协议适配。外部数据源按需连接，不把第三方项目整体耦合进宿主。
+
+### Nature Moment
+
+运动途中可以记录动物、植物和鸟类照片或短声音，标准输出包含候选、置信度、时间地点与证据。低置信度保存为 `unknown`；植物识别不直接推断可食、药用或毒性，动物与鸟类敏感位置默认模糊。完成运动后可以生成绑定 `source_event_ids` 的虚拟树和路线记忆，但不宣称完成现实植树。
 
 ### Qwen 语义基座
 
@@ -127,6 +144,7 @@ Frost 通过混合 Skill 路由和 Taskmaster 统一接收任务，管理确认�
 - 真实设备上的健康数据连接器与最小权限流程
 - Qwen3-4B 在服务器和端侧条件下对全部健康 Skill 的稳定路由
 - Her Motion 完整姿态运行时与宿主 App 的标准化交接
+- 识动物、识植物、识鸟和证据型虚拟种树重新接回 Action Map 与统一事件协议
 - App 刷新或进程中断后的 Goal、外部 Signal、待审批动作与已提交 Effect 恢复
 - Frost 行动 UI：当前 Goal、Step、Skill、Tool、等待原因、停止按钮和 evidence IDs
 
