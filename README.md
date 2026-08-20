@@ -156,16 +156,29 @@ npm run dev -- --host 127.0.0.1 --port 5174
 
 打开 `http://127.0.0.1:5174/`。
 
-### 地图配置
+### 地图与 API Key 配置
 
-协作者需要自行申请高德“Web 端 JS API”Key 和安全密钥，并只写入本机 `.env.local`：
+从 GitHub 拉取的仓库 **不会包含真实的高德 API Key**，这是正常且必要的安全边界。仓库只提供 `.env.example` 字段模板；每位协作者先在本机创建一份不受 Git 追踪的配置：
+
+```bash
+cp .env.example .env.local
+```
+
+推荐协作者自行申请高德“Web 端 JS API”Key 和安全密钥。团队联调阶段也可以临时使用项目负责人私下提供的测试 Key，但它只能保存在各自电脑的 `.env.local`：
 
 ```dotenv
 VITE_AMAP_KEY=your_amap_web_jsapi_key_here
 VITE_AMAP_SECURITY_JSCODE=your_amap_security_jscode_here
 ```
 
-真实 Key 不得提交到 Git。生产环境建议通过 `VITE_AMAP_SERVICE_HOST` 配置高德安全代理。
+协作规则：
+
+- `.env.local` 已被 `.gitignore` 排除；提交前仍应运行 `git status`，确认它没有进入暂存区。
+- 真实 Key 不得写入源码、README、Issue、Pull Request、截图或 Git 提交，即使仓库设置为 Private 也不例外。
+- 共用测试 Key 应通过私下渠道发送，并设置域名白名单、调用额度和最小使用范围；长期开发推荐每人使用自己的开发 Key。
+- 如果 Key 被误提交，应立即在高德控制台撤销并重新生成；只删除文件或提交记录不能证明旧 Key 已经安全。
+
+生产环境使用独立的生产 Key。高德 Web JS Key 最终会随前端请求被浏览器看到，因此安全性依赖域名限制和额度控制；安全密钥不应打入生产前端包，建议通过 `VITE_AMAP_SERVICE_HOST` 接入服务端安全代理，并在部署平台的 Secret/环境变量中管理生产配置。
 
 ### Qwen 与健康连接器
 
