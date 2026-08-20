@@ -1,27 +1,111 @@
 # Pocket Buddy
 
-Pocket Buddy 是一个以运动、恢复、营养和日常健康为主线的私人 Agent 应用。Frost 负责理解目标、选择 Skill、声明权限并把任务交给可验证的执行层。
+> 一款以运动、恢复、营养与日常健康为主线，可以通过 Skill 组合成不同形态的私人 Agent。
 
-当前代码仅保留产品正在使用的健康与健身链路，不包含旧的内容整理、展示项目、私人文档、API 密钥、模型权重或 APK。
+Pocket Buddy 不是“健身 App 加一个聊天框”。用户只需要面对一个长期陪伴的角色 **Frost**：它理解目标和身体状态，判断该直接调用 Skill，还是交给专业 Agent，再把权限、执行、证据与记忆串成一个可追溯的行动闭环。
 
-## 当前能力
+同样安装 Pocket Buddy，不同用户可以装备不同的 Skill、连接不同的数据源，并形成不同的陪伴方式。我们希望个性化的不只是训练计划，而是每个人实际拥有的 **Agent 能力组合**。
 
-- Frost 任务路由、Taskmaster、确认门、证据记录与本地长期记忆
-- 基于高德 JSAPI 的 Action Map：跑步路线、GPS 实际轨迹、偏航重规划
-- Her Motion 私有动作会话与本地摄像头兜底运行时
-- 餐食照片、包装食品、中国食品范围与恢复餐入口
-- Running Coach、healthsync、MediaPipe、Section 11、OpenFoodFacts、Garmin 与 health-coach 的 Frost 协议适配
-- Qwen3-4B 统一语义基座的服务器验证脚本与端侧 MNN 路由契约
+本仓库是供团队协作的代码快照，只保留当前产品需要的运动健康链路；不包含内部产品文档、真实 API 密钥、模型权重、APK 或早期非核心演示模块。
 
-## Skill 分层
+## 产品闭环
 
-1. **原生专属 Skill**：对摄像头、GPS、地图、持续动画等高频能力，由可信宿主执行。
-2. **声明式 Skill**：声明输入、输出、权限、工具和 UI schema，由通用运行时渲染。
-3. **Web 沙箱 Skill**：面向第三方开发者的隔离容器；默认无法读取宿主数据，只能通过授权能力桥请求必要数据。
+```mermaid
+flowchart LR
+    A[目标与身体状态] --> B[Frost 理解与规划]
+    B --> C{风险与复杂度}
+    C -->|低风险、单能力| D[直接调用 Skill]
+    C -->|复杂、模糊或高风险| E[委派专业 Agent]
+    D --> F[工具 / 模型 / 设备]
+    E --> F
+    F --> G[行动结果与证据]
+    G --> H[复盘与长期记忆]
+    H --> A
+```
 
-路径规划使用混合方式：Skill 生成标准化 `RouteSession`，宿主中间 Tab 负责地图渲染、定位权限和后台 GPS。这会减少跨沙箱桥接，同时保留 Skill 的可装卸与可测试边界。
+- **Frost / Taskmaster**：唯一的用户入口，负责理解意图、拆解任务、选择能力与确认关键操作。
+- **专业 Agent**：处理需要持续判断或领域复核的任务，例如训练决策、恢复建议和营养分析。
+- **Skill**：可发现、装载、卸载和调用的能力单元，声明输入、输出、权限与证据要求。
+- **Tool / Model / Device**：真正执行地图、摄像头、健康数据查询或模型推理的底层能力。
 
-## 本地开发
+简单任务不必经过完整多 Agent 流程；复杂或高风险任务才升级给专业 Agent。这样既保留响应速度，也让重要决策可复核。
+
+## 当前核心体验
+
+### Frost 运动健康管家
+
+Frost 通过混合 Skill 路由和 Taskmaster 统一接收任务，管理确认门、执行记录、本地长期记忆与专业 Agent 交接。用户看到的是一个连续的人格，内部能力可以独立演进。
+
+### Action Map
+
+基于高德 JSAPI 的跑步与行动地图，支持路线生成、GPS 实际轨迹和偏航重规划。路径规划逻辑输出标准化 `RouteSession`，地图渲染、定位权限与后台 GPS 由宿主中间 Tab 承担。
+
+### Her Motion
+
+私有摄像头动作会话，用于热身、动作观察与连续帧确认。当前仓库提供本地摄像头兜底运行时；完整姿态模型可作为独立运行时挂载。低置信度时应保持克制，不强行给出动作结论。
+
+### 营养与健康数据
+
+提供餐食照片、包装食品、中国食品范围、恢复餐入口，以及 Running Coach、healthsync、MediaPipe、Section 11、OpenFoodFacts、Garmin 和 health-coach 的 Frost 协议适配。外部数据源按需连接，不把第三方项目整体耦合进宿主。
+
+### Qwen 语义基座
+
+仓库包含 Qwen3-4B 的服务器验证脚本、llama.cpp 兼容服务说明和端侧 MNN 路由契约。不同 Skill 可以共用语义基座，但通过统一输入输出契约保持边界，模型本身不等于 Skill。
+
+## Skill 体系
+
+| 类型 | 适合的能力 | 运行方式 | 当前阶段 |
+| --- | --- | --- | --- |
+| **原生专属 Skill** | 摄像头、GPS、地图、持续动画、端侧模型 | 由可信宿主或原生模块执行 | 核心链路已接入 |
+| **声明式 Skill** | 记录、查询、分析、简单工作流 | 声明输入、输出、权限、工具和 UI schema，由通用运行时执行 | 协议、注册与发布原型已建立；通用 Renderer 规划中 |
+| **Web 沙箱 Skill** | 第三方开发者提供的复杂交互工具 | 在隔离 WebView 中运行，只能通过授权能力桥访问宿主 | 规划能力，尚非当前 MVP 依赖 |
+
+三种类型不是互斥的产品路线。高频、强设备协同的能力可以原生化；大量轻量能力通过声明式协议组合；只有第三方复杂代码才需要更严格的 Web 沙箱。
+
+所有 Skill 最终应共享一套基础契约：
+
+- 身份与版本
+- 输入、输出与错误状态
+- 所需权限与最小数据范围
+- 可调用工具和模型
+- 展示方式与运行生命周期
+- 证据来源、审计记录与停止规则
+
+## 当前实现与下一步
+
+### 仓库中已有
+
+- Frost Taskmaster、Skill Router、确认门、任务交接和执行 Trace
+- 原生 Skill 注册协议、权限声明与设备能力检查
+- Action Map、跑步路线会话和 GPS 轨迹逻辑
+- Her Motion 私有会话与本地摄像头兜底
+- 运动、恢复、食品与健康数据 Skill 的协议适配和测试链路
+- Qwen3-4B 服务器部署脚本、端侧模型适配与回归测试
+
+### 正在验证
+
+- 真实设备上的健康数据连接器与最小权限流程
+- Qwen3-4B 在服务器和端侧条件下对全部健康 Skill 的稳定路由
+- Her Motion 完整姿态运行时与宿主 App 的标准化交接
+
+### 产品方向
+
+- **Skill Canvas / Sketch-to-Skill**：用户拖动和连接能力积木，先自由表达想法，再一键整理成结构清晰、可执行的 Skill 工作流。
+- **通用 UI Renderer**：根据 Skill 的输入输出声明自动组合拍照、文本、选择、结果卡片等基础界面。
+- **Capability Broker**：统一处理授权、最小数据披露、令牌有效期和审计，而不是让第三方 Skill 直接读取宿主数据。
+- **Web 沙箱运行时**：为开发者 Skill 提供独立存储、受控网络与能力桥。
+
+这些方向是下一阶段设计目标，不代表当前仓库已经具备完整的第三方 Skill 市场。
+
+## 健康、安全与隐私原则
+
+- Pocket Buddy 提供运动健康辅助，不替代医生、诊断或紧急服务。
+- 疼痛、异常症状或高风险状态优先触发停止规则，而不是继续追求训练完成度。
+- 健康建议应保留数据来源、推理依据和不确定性；没有证据时不编造事实。
+- Skill 默认只获得完成当前任务所需的最小权限，敏感能力由用户明确确认。
+- 本地数据、第三方连接器数据和 Skill 私有存储应保持边界；“卸载能力”和“删除个人数据”是两个独立动作。
+
+## 本地运行
 
 需要 Node.js 18.17 或更高版本。
 
@@ -33,35 +117,41 @@ npm run dev -- --host 127.0.0.1 --port 5174
 
 打开 `http://127.0.0.1:5174/`。
 
-地图开发者需自行申请高德「Web 端 JS API」Key 和安全密钥，然后填入本机 `.env.local`：
+### 地图配置
+
+协作者需要自行申请高德“Web 端 JS API”Key 和安全密钥，并只写入本机 `.env.local`：
 
 ```dotenv
 VITE_AMAP_KEY=your_amap_web_jsapi_key_here
 VITE_AMAP_SECURITY_JSCODE=your_amap_security_jscode_here
 ```
 
-真实 Key 不应提交到 Git。生产环境建议通过 `VITE_AMAP_SERVICE_HOST` 配置高德安全代理。
+真实 Key 不得提交到 Git。生产环境建议通过 `VITE_AMAP_SERVICE_HOST` 配置高德安全代理。
 
-## Qwen 与健康连接器
+### Qwen 与健康连接器
 
-DashScope Key 必须只配置在服务端，不得使用 `VITE_` 前缀。本地端侧服务可以通过 `MNN_URL` 接入；CPU 服务器上的 Qwen3-4B/llama.cpp 验证见 [`deploy/qwen3-4b-server`](deploy/qwen3-4b-server/README.md)。部署脚本会按需下载约 2.7 GB 的 GGUF 权重，权重不在仓库、项目包或 APK 内。
+DashScope Key 只能配置在服务端，不得使用 `VITE_` 前缀。CPU 服务器上的 Qwen3-4B/llama.cpp 验证见 [`deploy/qwen3-4b-server`](deploy/qwen3-4b-server/README.md)。脚本会按需下载约 2.7 GB 的 GGUF 权重，权重不在仓库、项目包或 APK 中。
 
-可选连接器：
+可选健康连接器：
 
 ```bash
 npm run health:install-connectors
 npm run health:verify-connectors
 ```
 
-`HEALTH_SKILL_LOCAL_BRIDGE` 在公网服务上默认必须保持关闭，除非已加入身份验证、限流与审计。
+`HEALTH_SKILL_LOCAL_BRIDGE` 在公网服务上必须默认关闭，除非已经加入身份验证、限流和审计。
 
-## 可选运行时
+## 目录说明
 
-- 开发环境内置 Her Motion 的私有摄像头会话兜底。完整 Her Motion 静态运行时在生产环境可单独挂载到 `/her-motion/`。
-- 「练了吗」可通过 `VITE_LIANLEMA_URL` 指向本机或授信服务。
-- 舌苔观察页随本仓库的 `public/tongue-observer/` 提供，只做观察，不作医疗诊断。
+```text
+src/app/                  产品界面、地图、Her Motion 与 Skill 页面
+frost-agent/              Frost 运行时、Taskmaster、路由、记忆与健康 Skill
+server/                   服务端 Qwen 与健康连接器桥接
+scripts/health/           健康连接器安装和 Qwen Skill 链路验证
+deploy/qwen3-4b-server/   Qwen3-4B 服务器部署与检查脚本
+```
 
-## 验证
+## 提交前验证
 
 ```bash
 npm run typecheck
@@ -69,4 +159,6 @@ npm test
 npm run build
 ```
 
-本仓库尚未添加开源许可证。在正式引入新外部代码或资产前，请先确认上游许可证与再分发条件。
+协作时请保持提交单一、可解释：不要提交 `.env.local`、真实凭据、模型权重、构建产物、APK、私人文档或当前产品未使用的旧功能。
+
+本仓库尚未添加开源许可证。在正式引入新的外部代码、模型或资产前，请先确认上游许可证与再分发条件。
