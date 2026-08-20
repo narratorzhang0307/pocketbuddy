@@ -10,25 +10,41 @@ Pocket Buddy 不是“健身 App 加一个聊天框”。用户只需要面对�
 
 ## 产品闭环
 
-```mermaid
-flowchart LR
-    A[目标与身体状态] --> B[Frost 理解与规划]
-    B --> C{风险与复杂度}
-    C -->|低风险、单能力| D[直接调用 Skill]
-    C -->|复杂、模糊或高风险| E[委派专业 Agent]
-    D --> F[工具 / 模型 / 设备]
-    E --> F
-    F --> G[行动结果与证据]
-    G --> H[复盘与长期记忆]
-    H --> A
-```
+![Pocket Buddy 产品闭环](docs/assets/product-loop.svg)
 
-- **Frost / Taskmaster**：唯一的用户入口，负责理解意图、拆解任务、选择能力与确认关键操作。
+- Frost 接收目标与身体状态，形成当前 Goal。
+- Harness 评估风险与复杂度：低风险、单能力任务直接调用 Skill；复杂、模糊或高风险任务才委派专业 Agent。
+- Tool Runtime 在权限、审批和停止规则内调用工具、模型或设备。
+- Tool Result、设备 Signal 和证据回到 Frost；Health Taskmaster 只提交一次权威事实或副作用。
+- Frost 根据新观察继续下一步、询问用户、进入等待、安全停止或完成目标，并把结果写入可追溯记忆。
+
+- **Frost**：用户唯一面对的长期角色，负责理解目标、说明状态并交付最终结果。
+- **Harness**：Frost 的运行控制面，负责循环、工具、权限、日志、中断、等待、恢复和目标续行。
+- **Health Taskmaster**：可靠执行内核，负责健康事实、Signal、Effect 与幂等提交，模型不能绕过它直接改写事实。
 - **专业 Agent**：处理需要持续判断或领域复核的任务，例如训练决策、恢复建议和营养分析。
 - **Skill**：可发现、装载、卸载和调用的能力单元，声明输入、输出、权限与证据要求。
 - **Tool / Model / Device**：真正执行地图、摄像头、健康数据查询或模型推理的底层能力。
 
 简单任务不必经过完整多 Agent 流程；复杂或高风险任务才升级给专业 Agent。这样既保留响应速度，也让重要决策可复核。
+
+## Frost：Model + Harness
+
+Qwen 等模型只负责提出候选下一步，真正让 Frost 可以持续行动、接受中途指令、等待设备、刷新恢复并安全停止的是轻量 Harness。Frost 不保存或展示模型隐藏思维链，只记录结构化决策、工具调用、结果和证据。
+
+每个用户目标是一个 **Turn**；一次“模型决策 + 工具执行 + 结果观察”是一个 **Step**。一个 Turn 可以连续运行多个 Step，直到完成、等待用户、等待外部 Signal、取消或触发安全停止。
+
+| Harness 组件 | 负责什么 | 当前仓库状态 |
+| --- | --- | --- |
+| **Session Log** | 只追加记录消息、决策、Tool、Signal、审批与状态，作为回放和恢复的事实源 | 内存与 IndexedDB 实现已接入 |
+| **Inbox** | 区分 `followup`、`steer`、`inject` 与 `cancel`；用户中途指令优先进入下一 Step | 已接入单 Driver 循环 |
+| **Agent Loop** | 执行 Decision → Tool → Observation → 再决策，并限制 Step、Tool Call 与截止时间 | 多 Step 链路已接入 |
+| **Tool Runtime** | 校验输入与一次性审批凭据，处理超时、取消、结果校验和冻结 | 基础执行管线已接入；统一 Permission / Guard 管线仍在完善 |
+| **Goal Driver** | 只在空闲、已持久化、有预算且没有竞争输入时自动续行 | 持久 Goal、版本抢占与轮次预算已接入 |
+| **Health Taskmaster** | 提交 Task、Signal、Effect 和 Health Event，确保事实与副作用幂等 | 继续作为健康事实的唯一可靠执行边界 |
+| **Recovery / Projection** | 从日志恢复状态，并让 UI 展示当前 Goal、等待原因、证据与下一动作 | 已支持中断会话的保守恢复；完整自动恢复和行动 UI 仍在验证 |
+| **专业 Agent / Job** | 隔离长任务和专业上下文，只返回 Proposal、证据、风险与警告 | Provider 接口方向，尚非当前 MVP 依赖 |
+
+模型只能从严格的下一动作合同中选择：加载 Skill、调用 Tool、启动 Task、询问用户、等待外部事件、带证据完成或安全停止。所有模型输出都是 Candidate，必须经过 Runtime 校验；专业 Agent 同样只能提交 Proposal，不能直接控制设备或写入健康事实。
 
 ## 当前核心体验
 
@@ -68,20 +84,15 @@ Frost 通过混合 Skill 路由和 Taskmaster 统一接收任务，管理确认�
 
 ### Skill Canvas 创作链路
 
-```mermaid
-flowchart LR
-    A[用户想法 / 自由 Sketch] --> C[Skill Canvas]
-    B[能力积木库] --> C
-    C --> D[一键结构化]
-    D --> E[声明式 Skill 图]
-    E --> F[权限与能力校验]
-    F --> G[运行时 + 通用 UI Renderer]
-```
+**创作链路：** 用户想法 / 自由 Sketch → 在 Skill Canvas 组合能力积木 → 一键结构化 → 生成声明式 Skill 图 → 权限与能力校验 → Skill Taskmaster 执行并由通用 UI Renderer 展示。
+
+![Skill Canvas 创作链路](docs/assets/skill-canvas-flow.svg)
 
 - **能力积木库**：地图、定位、拍照、健康数据、模型调用、条件判断、记忆和结果展示等最小可复用模块。
 - **Skill Canvas**：用户可以自由拖动、连接和组合积木，先像 Sketch 或思维导图一样表达意图，不必先决定严格层级。
 - **结构化引擎**：把可能杂乱的草图一键整理成清晰层级，补齐输入输出，检查断线、循环、权限与错误分支。
 - **声明式 Skill 图**：Canvas 最终生成的机器可执行产物，可以保存、版本化、装载、卸载和分享。
+- **Skill Taskmaster / Graph Runtime**：按图的依赖顺序调度积木，传递数据，处理分支、暂停、重试、取消、Signal 与错误；涉及健康事实或设备副作用时再交给 Health Taskmaster。
 - **通用 Renderer**：根据 Skill 图自动组合拍照、文本、选择、地图和结果卡片；需要强交互时再交给原生页面或 Web 沙箱。
 
 所有 Skill 最终应共享一套基础契约：
@@ -97,7 +108,8 @@ flowchart LR
 
 ### 仓库中已有
 
-- Frost Taskmaster、Skill Router、确认门、任务交接和执行 Trace
+- Frost Session Log、Inbox、Agent Loop、Tool Runtime、Goal Driver 与 Qwen 决策适配
+- Taskmaster、Skill Router、确认门、任务交接、Effect Ledger 和执行 Trace
 - 原生 Skill 注册协议、权限声明与设备能力检查
 - Action Map、跑步路线会话和 GPS 轨迹逻辑
 - Her Motion 私有会话与本地摄像头兜底
@@ -109,14 +121,18 @@ flowchart LR
 - 真实设备上的健康数据连接器与最小权限流程
 - Qwen3-4B 在服务器和端侧条件下对全部健康 Skill 的稳定路由
 - Her Motion 完整姿态运行时与宿主 App 的标准化交接
+- App 刷新或进程中断后的 Goal、外部 Signal、待审批动作与已提交 Effect 恢复
+- Frost 行动 UI：当前 Goal、Step、Skill、Tool、等待原因、停止按钮和 evidence IDs
 
 ### 产品方向
 
 - **能力积木标准化**：先把地图、GPS、相机、模型、健康数据和逻辑控制做成边界稳定的基础节点。
 - **Skill Canvas / Sketch-to-Skill**：支持自由画布与拖拽连线，并把用户草图一键结构化、校验和编译为声明式 Skill 图。
+- **Skill Taskmaster / Graph Runtime**：复用现有状态机、Signal、幂等与 Effect 语义，增加动态 Action Graph，让画布生成的不同 Skill 都能被同一执行内核可靠运行。
 - **通用 UI Renderer**：根据生成的 Skill 图自动组合拍照、文本、选择、地图和结果卡片等界面。
 - **Capability Broker**：统一处理授权、最小数据披露、令牌有效期和审计，而不是让第三方 Skill 直接读取宿主数据。
 - **Web 沙箱运行时**：为开发者 Skill 提供独立存储、受控网络与能力桥。
+- **专业 Agent 与 Job Provider**：长同步和专业复核进入隔离上下文，只返回可验证 Proposal，不获得宿主副作用权限。
 
 这些方向是下一阶段设计目标，不代表当前仓库已经具备完整的第三方 Skill 市场。
 
