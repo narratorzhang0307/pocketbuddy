@@ -19,7 +19,7 @@ import { PLAZA_WORLDS } from '../data/plazaWorlds';
 import { resolveSkillRunTarget, type SkillRunTarget } from '../lib/plaza/skillRoutes';
 import { cancelAbandonedHerMotionSessions } from '../lib/health/herMotionSession';
 import { listCanvasSkills, removeCanvasSkill, subscribeCanvasSkills, type CanvasSkillRecord } from '../../../frost-agent/skill-taskmaster';
-import { getSkillAvatar } from '../data/skillAvatarCatalog';
+import { getBuiltinSkillAvatar, getSkillAvatar } from '../data/skillAvatarCatalog';
 
 const POCKET_BUDDY_ASSET = `${import.meta.env.BASE_URL}assets/pocket-buddy/pet-materials-v1/objects-01.png`;
 
@@ -50,8 +50,9 @@ interface AgentItem {
   background?: string;
 }
 
-function PublisherAvatar({ publisher, size = 52 }: { publisher: SkillPublisher; size?: number }) {
-  return <span className="shrink-0 overflow-hidden rounded-full border-2 border-black bg-[#f5efdf]" style={{ width: size, height: size }}><img src={publisher.avatar} alt={`${publisher.name}的发布者头像`} className="h-full w-full object-contain" loading="lazy" draggable={false} /></span>;
+function SkillCardAvatar({ skillName, publisher, size = 52 }: { skillName: string; publisher: SkillPublisher; size?: number }) {
+  const avatar = getBuiltinSkillAvatar(skillName);
+  return <span className="grid shrink-0 place-items-center overflow-hidden rounded-full border-2 border-black" style={{ width: size, height: size, background: avatar?.accent || '#f5efdf' }}><img src={avatar?.assetUrl || publisher.avatar} alt={avatar ? `${avatar.name}技能形象` : `${publisher.name}的发布者头像`} className="h-[94%] w-[94%] object-contain" loading="lazy" draggable={false} /></span>;
 }
 
 const HER_MOTION_WORLD = PLAZA_WORLDS.find((world) => world.id === 'w_hermotion')!;
@@ -355,14 +356,14 @@ export default function MusicAgentsTab({ embedded = false, openTarget, openTarge
                         onClick={needsLoad && manifestId ? () => void installSkillHere(manifestId) : runnable ? openSkill : undefined}
                         className={`grid min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-2.5 p-2.5 text-left transition-colors ${runnable || needsLoad ? 'hover:bg-[#00ff88]/10 active:translate-y-px' : 'cursor-default'}`}
                       >
-                        <PublisherAvatar publisher={publisher} />
+                        <SkillCardAvatar skillName={a.name} publisher={publisher} />
                         <span className="min-w-0">
                           {a.zhLabel ? <>
                             <span className="block truncate text-[12px] font-black leading-[14px] tracking-wide">{a.zhLabel}</span>
                             <span className="mt-0.5 block truncate font-pixel text-[6.5px] tracking-wider text-black/55">{label}</span>
                           </> : <span className={`block truncate tracking-wide ${/[\u3400-\u9fff]/.test(label) ? 'text-[12px] font-bold leading-[14px]' : 'font-pixel text-[9px]'}`}>{label}</span>}
                           <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
-                            <span className="min-w-0 flex-1 truncate text-[8.5px] font-bold text-[#18784b]">{publisher.name} · {a.publisherRole ?? publisher.role} 发布</span>
+                            <span className="min-w-0 flex-1 truncate text-[8.5px] font-bold text-[#18784b]">{getBuiltinSkillAvatar(a.name)?.name ?? publisher.name} · {publisher.name} 发布</span>
                             {a.kind && <span className={`shrink-0 border border-black px-1 py-0.5 font-pixel text-[5px] ${a.kind === 'Markdown' ? 'bg-[#eef3df] text-[#326B55]' : a.kind === 'LoRA' ? loraPaused ? 'bg-[#d1d1d1] text-black/45' : 'bg-[#b388ff] text-black' : 'bg-black text-[#b388ff]'}`}>{a.kind}</span>}
                             {edgeCoverage && <span title={edgeCoverage.proof} className="shrink-0 border border-[#087c49] bg-[#e8f8ef] px-1 py-0.5 font-pixel text-[5px] text-[#087c49]">{edgeCoverage.semanticRuntime === 'qwen3-4b-health-mnn' ? 'QWEN4B·MNN' : 'LOCAL RULES'}</span>}
                             {a.runtimeBadge && <span className="shrink-0 border border-[#665ec7] bg-white px-1 py-0.5 font-pixel text-[5px] text-[#5148b5]">{a.runtimeBadge}</span>}

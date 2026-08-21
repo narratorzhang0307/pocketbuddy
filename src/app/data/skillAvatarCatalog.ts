@@ -22,8 +22,27 @@ export const SKILL_AVATARS: SkillAvatarOption[] = [
   { id: 'evidence-elephant', name: '记忆小象', role: '保存结果与证据', assetUrl: `${ASSET_BASE}evidence-elephant.png`, accent: '#95a77a', capability: 'store.local' },
 ];
 
+export const BUILTIN_SKILL_AVATAR_IDS: Record<string, string> = {
+  'frost-run-route': 'location-giraffe',
+  'her-motion': 'pose-rabbit',
+  'lianlema-coach': 'pose-rabbit',
+  'frost-wger-planner': 'semantic-owl',
+  'frost-mealie-kitchen': 'health-tiger',
+  'frost-healthsync': 'evidence-elephant',
+  'frost-motion-vision': 'pose-rabbit',
+  'frost-openfoodfacts': 'health-tiger',
+  'frost-cn-health-library': 'evidence-elephant',
+  'frost-outdoor-window': 'location-giraffe',
+  'frost-sleep-detective': 'semantic-owl',
+  'frost-meal-lens': 'health-tiger',
+};
+
 export function getSkillAvatar(id?: string): SkillAvatarOption | undefined {
   return id ? SKILL_AVATARS.find((avatar) => avatar.id === id) : undefined;
+}
+
+export function getBuiltinSkillAvatar(agentId: string): SkillAvatarOption | undefined {
+  return getSkillAvatar(BUILTIN_SKILL_AVATAR_IDS[agentId]);
 }
 
 export function recommendSkillAvatar(nodes: SkillCanvasNode[]): SkillAvatarOption {
