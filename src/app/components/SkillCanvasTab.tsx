@@ -531,7 +531,7 @@ export default function SkillCanvasTab({ skillId, onSaved, visualStyle = 'signal
             {SKILL_AVATARS.map((avatar) => {
               const active = selectedAvatar.id === avatar.id;
               const recommended = recommendedAvatar.id === avatar.id;
-              return <button key={avatar.id} type="button" aria-pressed={active} aria-label={`选择${avatar.name}作为技能形象`} onClick={() => updateDraft({ ...draft, avatar_id: avatar.id, avatar_name: avatar.name, avatar_role: avatar.role })} className={`relative min-w-0 rounded-[12px] border-2 p-1.5 text-center ${active ? 'border-black bg-[#ffd34e] shadow-[2px_2px_0_#000]' : 'border-black/25 bg-white'}`}>
+              return <button key={avatar.id} type="button" aria-pressed={active} aria-label={`选择${avatar.name}作为技能形象`} onClick={() => updateDraft({ ...draft, avatar_id: avatar.id, avatar_name: avatar.name, avatar_role: avatar.role })} className={`relative min-w-0 rounded-[12px] border-2 p-1.5 text-center ${active ? 'border-black bg-[#ffd34e]' : 'border-black/25 bg-white'}`}>
                 {recommended && <span className="absolute right-1 top-1 z-10 rounded-full border border-black bg-[#00ff88] px-1 py-0.5 font-pixel text-[4px]">推荐</span>}
                 <span className="mx-auto grid h-12 w-12 max-w-full place-items-center overflow-hidden rounded-full" style={{ background: `${avatar.accent}66` }}><img src={avatar.assetUrl} alt="" className="h-[94%] w-[94%] object-contain" loading="lazy" draggable={false} /></span>
                 <small className="mt-1 block truncate text-[6px] font-black">{avatar.name}</small>
