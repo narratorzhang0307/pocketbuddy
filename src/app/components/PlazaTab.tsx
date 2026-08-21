@@ -19,7 +19,7 @@ const SkillCanvasTab = lazy(() => import('./SkillCanvasTab'));
 const VISIBLE_SKILL_COUNT = BUILTIN_SKILLS.filter((skill) => resolveSkillRunTarget(skill.entry.target)).length;
 
 interface Props {
-  initialMode?: 'worlds' | 'skills' | 'myagent' | 'canvas';
+  initialMode?: 'worlds' | 'skills' | 'myagent' | 'canvas' | 'canvasLab';
   externalSkillTarget?: string | null;
   externalSkillBackLabel?: string;
   onExternalSkillTargetHandled?: () => void;
@@ -57,14 +57,16 @@ function loadWorldDraft(): WorldDraft {
   return readPlazaWorldDraft(DEFAULT_WORLD_DRAFT, WORLD_TONES.map((tone) => tone.id), WORLD_AGENT_IDS, PLAZA_SKILL_IDS);
 }
 
-type NetworkMode = 'worlds' | 'skills' | 'myagent' | 'canvas';
+type NetworkMode = 'worlds' | 'skills' | 'myagent' | 'canvas' | 'canvasLab';
 
 function NetworkHeader({ active, canvasSkillCount, onChange }: { active: NetworkMode; canvasSkillCount: number; onChange: (value: NetworkMode) => void }) {
-  const title = active === 'skills' ? 'MY SKILLS' : active === 'canvas' ? 'SKILL DECK' : active === 'myagent' ? 'MY AGENT' : 'AGENT WORLD';
+  const title = active === 'skills' ? '我的技能' : active === 'canvas' ? '技能画布' : active === 'canvasLab' ? '卡牌实验' : active === 'myagent' ? '我的智能体' : '智能体世界';
   const subtitle = active === 'skills'
     ? '已加载到这台设备的 Skills · 随时装备与运行'
     : active === 'canvas'
-      ? '挑选与组合能力卡 · 由 Skill Taskmaster 编译为真正的任务'
+      ? '拖动能力积木 · 由 Skill Taskmaster 编译为真正的任务'
+    : active === 'canvasLab'
+      ? '独立视觉试验 · 白底、纯色色块与黑色功能线稿'
     : active === 'myagent'
       ? '从照片建立口袋伙伴 · 形象、人格与记忆只在确认后保存'
       : '健康 Skill 广场 · 浏览运动、恢复与营养能力';
@@ -81,15 +83,16 @@ function NetworkHeader({ active, canvasSkillCount, onChange }: { active: Network
           </div>
           {active === 'worlds' && <span className="grid h-11 w-11 shrink-0 place-items-center border-2 border-black bg-[#00ff88]"><Globe2 className="h-6 w-6" strokeWidth={2.5} /></span>}
           {active === 'myagent' && <span className="grid h-11 w-11 shrink-0 place-items-center border-2 border-black bg-[#ffd34e]"><PawPrint className="h-6 w-6" strokeWidth={2.5} /></span>}
-          {active === 'canvas' && <span className="grid h-11 w-11 shrink-0 rotate-3 place-items-center border-2 border-black bg-[#ffd34e] shadow-[2px_2px_0_#000]"><Blocks className="h-6 w-6" strokeWidth={2.5} /></span>}
+          {(active === 'canvas' || active === 'canvasLab') && <span className="grid h-11 w-11 shrink-0 rotate-3 place-items-center border-2 border-black bg-[#ffd34e] shadow-[2px_2px_0_#000]"><Blocks className="h-6 w-6" strokeWidth={2.5} /></span>}
           {active === 'skills' && <span className="shrink-0 border-2 border-black bg-[#E8F8EF] px-2 py-1.5 font-pixel text-[7px] tracking-wider text-[#087C49]">{VISIBLE_SKILL_COUNT} CORE{canvasSkillCount > 0 ? ` + ${canvasSkillCount} MINE` : ''}</span>}
         </div>
       </div>
       <div className="shrink-0 border-b-2 border-black bg-black px-3 py-2">
-        <div className="grid grid-cols-3 gap-1.5">
-          <button type="button" aria-pressed={active === 'skills'} onClick={() => onChange('skills')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'skills' ? 'border-[#00ff88] bg-[#00ff88] text-black' : 'border-white/50 text-white/70'}`}>MY SKILLS</button>
-          <button type="button" aria-pressed={active === 'canvas'} onClick={() => onChange('canvas')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'canvas' ? 'border-[#ffd34e] bg-[#ffd34e] text-black' : 'border-white/50 text-white/70'}`}>DECK</button>
-          <button type="button" aria-pressed={active === 'worlds'} onClick={() => onChange('worlds')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'worlds' ? 'border-[#00ff88] bg-[#00ff88] text-black' : 'border-white/50 text-white/70'}`}>AGENT WORLD</button>
+        <div className="grid grid-cols-4 gap-1.5">
+          <button type="button" aria-pressed={active === 'skills'} onClick={() => onChange('skills')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'skills' ? 'border-[#00ff88] bg-[#00ff88] text-black' : 'border-white/50 text-white/70'}`}>我的技能</button>
+          <button type="button" aria-pressed={active === 'canvas'} onClick={() => onChange('canvas')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'canvas' ? 'border-[#ffd34e] bg-[#ffd34e] text-black' : 'border-white/50 text-white/70'}`}>技能画布</button>
+          <button type="button" aria-pressed={active === 'canvasLab'} onClick={() => onChange('canvasLab')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'canvasLab' ? 'border-[#ff55d8] bg-[#ff55d8] text-black' : 'border-white/50 text-white/70'}`}>卡牌实验</button>
+          <button type="button" aria-pressed={active === 'worlds'} onClick={() => onChange('worlds')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'worlds' ? 'border-[#00ff88] bg-[#00ff88] text-black' : 'border-white/50 text-white/70'}`}>智能体世界</button>
         </div>
       </div>
     </>
@@ -310,8 +313,8 @@ export default function PlazaTab({ initialMode = 'worlds', externalSkillTarget, 
       {!skillRunning && <NetworkHeader active={mode} canvasSkillCount={canvasSkillCount} onChange={(value) => { setSelectedWorld(null); setSelectedSkillId(null); setRequestedSkillTarget(null); setSkillOpenOrigin(null); setBuildingWorld(false); setCanvasSkillId(null); setMode(value); }} />}
       {mode === 'skills'
         ? <div className="min-h-0 flex-1 overflow-hidden"><Suspense fallback={<div className="grid h-full place-items-center bg-[#EAEAEA] font-pixel text-[8px]">LOADING SKILLS...</div>}><MusicAgentsTab embedded openTarget={externalSkillTarget ?? requestedSkillTarget} openTargetBackLabel={externalSkillTarget ? externalSkillBackLabel : skillOpenOrigin === 'myagent' ? '返回 My Agent' : '返回 Plaza'} onRunningChange={setSkillRunning} onOpenCanvasSkill={(id) => { setCanvasSkillId(id); setMode('canvas'); }} onOpenTargetHandled={() => { if (externalSkillTarget) { setSkillOpenOrigin('external'); onExternalSkillTargetHandled?.(); } else { if (!skillOpenOrigin) setSkillOpenOrigin('plaza'); setRequestedSkillTarget(null); } }} onReturnFromExternalTarget={() => { if (skillOpenOrigin === 'external') onReturnFromExternalSkill?.(); else setMode(skillOpenOrigin === 'myagent' ? 'myagent' : 'worlds'); setSkillOpenOrigin(null); }} /></Suspense></div>
-        : mode === 'canvas'
-        ? <div className="min-h-0 flex-1 overflow-hidden"><Suspense fallback={<div className="grid h-full place-items-center bg-[#EAEAEA] font-pixel text-[8px]">LOADING CANVAS...</div>}><SkillCanvasTab skillId={canvasSkillId} /></Suspense></div>
+        : mode === 'canvas' || mode === 'canvasLab'
+        ? <div className="min-h-0 flex-1 overflow-hidden"><Suspense fallback={<div className="grid h-full place-items-center bg-[#EAEAEA] font-pixel text-[8px]">LOADING CANVAS...</div>}><SkillCanvasTab key={mode} skillId={canvasSkillId} visualStyle={mode === 'canvasLab' ? 'editorial' : 'signal'} /></Suspense></div>
         : mode === 'myagent'
         ? buildingWorld
           ? <WorldDraftBuilder draft={editingWorldDraft} onChange={(next) => { setEditingWorldDraft(next); setDraftSaved(false); setDraftSaveError(null); }} onBack={() => { setEditingWorldDraft(worldDraft); setDraftSaveError(null); setBuildingWorld(false); }} saved={draftSaved} saveError={draftSaveError} onSave={() => { try { const saved = writePlazaWorldDraft(editingWorldDraft); setWorldDraft(saved); setEditingWorldDraft(saved); setDraftSaved(true); setDraftSaveError(null); } catch { setDraftSaved(false); setDraftSaveError('本机草稿保存失败'); } }} onDelete={() => { deletePlazaWorldDraft(); setWorldDraft(DEFAULT_WORLD_DRAFT); setEditingWorldDraft(DEFAULT_WORLD_DRAFT); setDraftSaved(false); setDraftSaveError(null); setBuildingWorld(false); }} />

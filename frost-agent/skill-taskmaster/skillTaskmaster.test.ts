@@ -11,7 +11,7 @@ vi.stubGlobal('localStorage', {
 function draft(): SkillCanvasDraft {
   const now = '2026-08-20T00:00:00.000Z';
   return {
-    id: 'canvas-morning-run', title: '晨跑伙伴', prompt: '根据恢复状态陪我安全晨跑', created_at: now, updated_at: now, edges: [],
+    id: 'canvas-morning-run', title: '晨跑伙伴', prompt: '根据恢复状态陪我安全晨跑', avatar_id: 'health-tiger', created_at: now, updated_at: now, edges: [],
     nodes: [
       { id: 'voice', capability: 'action.voice', label: '语音陪伴', detail: '提醒', x: 0, y: 0 },
       { id: 'start', capability: 'trigger.manual', label: '开始', detail: '点击', x: 0, y: 0 },
@@ -30,6 +30,7 @@ describe('Skill Taskmaster', () => {
     expect(result.graph?.nodes.map((node) => node.stage)).toEqual(['trigger', 'sense', 'guard', 'act']);
     expect(result.graph?.permissions).toEqual(['read:health_events', 'notify:user']);
     expect(result.graph?.stop_rules).toHaveLength(1);
+    expect(result.graph?.avatar_id).toBe('health-tiger');
   });
 
   it('rejects a sketch without trigger or outcome', () => {
@@ -48,5 +49,6 @@ describe('Skill Taskmaster', () => {
     expect(trace.steps.find((step) => step.node_id === 'health')?.evidence).toContain('未读取真实数据');
     saveCanvasSkill(result.graph!, result.structured, trace);
     expect(getCanvasSkill(result.graph!.skill_id)?.latest_run?.run_id).toBe(trace.run_id);
+    expect(getCanvasSkill(result.graph!.skill_id)?.draft.avatar_id).toBe('health-tiger');
   });
 });
