@@ -1,5 +1,5 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Cpu, Globe2, LoaderCircle, PackageCheck, PawPrint, Save, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { Blocks, Check, ChevronLeft, ChevronRight, Cpu, Globe2, LoaderCircle, PackageCheck, PawPrint, Save, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 import AgentPlazaPage from './AgentPlazaPage';
 import SkillPublishingDeclaration from './SkillPublishingDeclaration';
 import { BUILTIN_SKILLS, getEquippedSkill } from '../lib/skill';
@@ -11,13 +11,15 @@ import { getAgentWorldPocketBuddyBlueprint } from '../lib/pocket-buddy';
 import { isNativeMnnPlatform } from '../../../frost-agent/edge/capacitorMnnEdge';
 import { runEdgeChatEvidence } from '../../../frost-agent/edge/httpEdge';
 import { resolveSkillRunTarget } from '../lib/plaza/skillRoutes';
+import { listCanvasSkills, subscribeCanvasSkills } from '../../../frost-agent/skill-taskmaster';
 
 const MusicAgentsTab = lazy(() => import('./MusicAgentsTab'));
 const PocketBuddyForge = lazy(() => import('./PocketBuddyForge'));
+const SkillCanvasTab = lazy(() => import('./SkillCanvasTab'));
 const VISIBLE_SKILL_COUNT = BUILTIN_SKILLS.filter((skill) => resolveSkillRunTarget(skill.entry.target)).length;
 
 interface Props {
-  initialMode?: 'worlds' | 'skills' | 'myagent';
+  initialMode?: 'worlds' | 'skills' | 'myagent' | 'canvas';
   externalSkillTarget?: string | null;
   externalSkillBackLabel?: string;
   onExternalSkillTargetHandled?: () => void;
@@ -55,12 +57,14 @@ function loadWorldDraft(): WorldDraft {
   return readPlazaWorldDraft(DEFAULT_WORLD_DRAFT, WORLD_TONES.map((tone) => tone.id), WORLD_AGENT_IDS, PLAZA_SKILL_IDS);
 }
 
-type NetworkMode = 'worlds' | 'skills' | 'myagent';
+type NetworkMode = 'worlds' | 'skills' | 'myagent' | 'canvas';
 
-function NetworkHeader({ active, onChange }: { active: NetworkMode; onChange: (value: NetworkMode) => void }) {
-  const title = active === 'skills' ? 'MY SKILLS' : active === 'myagent' ? 'MY AGENT' : 'AGENT WORLD';
+function NetworkHeader({ active, canvasSkillCount, onChange }: { active: NetworkMode; canvasSkillCount: number; onChange: (value: NetworkMode) => void }) {
+  const title = active === 'skills' ? 'MY SKILLS' : active === 'canvas' ? 'SKILL DECK' : active === 'myagent' ? 'MY AGENT' : 'AGENT WORLD';
   const subtitle = active === 'skills'
     ? '已加载到这台设备的 Skills · 随时装备与运行'
+    : active === 'canvas'
+      ? '挑选与组合能力卡 · 由 Skill Taskmaster 编译为真正的任务'
     : active === 'myagent'
       ? '从照片建立口袋伙伴 · 形象、人格与记忆只在确认后保存'
       : '健康 Skill 广场 · 浏览运动、恢复与营养能力';
@@ -77,12 +81,14 @@ function NetworkHeader({ active, onChange }: { active: NetworkMode; onChange: (v
           </div>
           {active === 'worlds' && <span className="grid h-11 w-11 shrink-0 place-items-center border-2 border-black bg-[#00ff88]"><Globe2 className="h-6 w-6" strokeWidth={2.5} /></span>}
           {active === 'myagent' && <span className="grid h-11 w-11 shrink-0 place-items-center border-2 border-black bg-[#ffd34e]"><PawPrint className="h-6 w-6" strokeWidth={2.5} /></span>}
-          {active === 'skills' && <span className="shrink-0 border-2 border-black bg-[#E8F8EF] px-2 py-1.5 font-pixel text-[7px] tracking-wider text-[#087C49]">{VISIBLE_SKILL_COUNT} / {VISIBLE_SKILL_COUNT}</span>}
+          {active === 'canvas' && <span className="grid h-11 w-11 shrink-0 rotate-3 place-items-center border-2 border-black bg-[#ffd34e] shadow-[2px_2px_0_#000]"><Blocks className="h-6 w-6" strokeWidth={2.5} /></span>}
+          {active === 'skills' && <span className="shrink-0 border-2 border-black bg-[#E8F8EF] px-2 py-1.5 font-pixel text-[7px] tracking-wider text-[#087C49]">{VISIBLE_SKILL_COUNT} CORE{canvasSkillCount > 0 ? ` + ${canvasSkillCount} MINE` : ''}</span>}
         </div>
       </div>
       <div className="shrink-0 border-b-2 border-black bg-black px-3 py-2">
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           <button type="button" aria-pressed={active === 'skills'} onClick={() => onChange('skills')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'skills' ? 'border-[#00ff88] bg-[#00ff88] text-black' : 'border-white/50 text-white/70'}`}>MY SKILLS</button>
+          <button type="button" aria-pressed={active === 'canvas'} onClick={() => onChange('canvas')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'canvas' ? 'border-[#ffd34e] bg-[#ffd34e] text-black' : 'border-white/50 text-white/70'}`}>DECK</button>
           <button type="button" aria-pressed={active === 'worlds'} onClick={() => onChange('worlds')} className={`whitespace-nowrap border px-2 py-1.5 font-pixel text-[7px] ${active === 'worlds' ? 'border-[#00ff88] bg-[#00ff88] text-black' : 'border-white/50 text-white/70'}`}>AGENT WORLD</button>
         </div>
       </div>
@@ -290,6 +296,9 @@ export default function PlazaTab({ initialMode = 'worlds', externalSkillTarget, 
   const [editingWorldDraft, setEditingWorldDraft] = useState<WorldDraft>(worldDraft);
   const [draftSaved, setDraftSaved] = useState(false);
   const [draftSaveError, setDraftSaveError] = useState<string | null>(null);
+  const [canvasSkillId, setCanvasSkillId] = useState<string | null>(null);
+  const [canvasSkillCount, setCanvasSkillCount] = useState(() => listCanvasSkills().length);
+  useEffect(() => subscribeCanvasSkills(() => setCanvasSkillCount(listCanvasSkills().length)), []);
   const selectedSkill = selectedSkillId ? BUILTIN_SKILLS.find((item) => item.identity.id === selectedSkillId) : null;
 
   if (mode === 'marketplace') {
@@ -298,9 +307,11 @@ export default function PlazaTab({ initialMode = 'worlds', externalSkillTarget, 
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#EAEAEA] font-sans">
-      {!skillRunning && <NetworkHeader active={mode} onChange={(value) => { setSelectedWorld(null); setSelectedSkillId(null); setRequestedSkillTarget(null); setSkillOpenOrigin(null); setBuildingWorld(false); setMode(value); }} />}
+      {!skillRunning && <NetworkHeader active={mode} canvasSkillCount={canvasSkillCount} onChange={(value) => { setSelectedWorld(null); setSelectedSkillId(null); setRequestedSkillTarget(null); setSkillOpenOrigin(null); setBuildingWorld(false); setCanvasSkillId(null); setMode(value); }} />}
       {mode === 'skills'
-        ? <div className="min-h-0 flex-1 overflow-hidden"><Suspense fallback={<div className="grid h-full place-items-center bg-[#EAEAEA] font-pixel text-[8px]">LOADING SKILLS...</div>}><MusicAgentsTab embedded openTarget={externalSkillTarget ?? requestedSkillTarget} openTargetBackLabel={externalSkillTarget ? externalSkillBackLabel : skillOpenOrigin === 'myagent' ? '返回 My Agent' : '返回 Plaza'} onRunningChange={setSkillRunning} onOpenTargetHandled={() => { if (externalSkillTarget) { setSkillOpenOrigin('external'); onExternalSkillTargetHandled?.(); } else { if (!skillOpenOrigin) setSkillOpenOrigin('plaza'); setRequestedSkillTarget(null); } }} onReturnFromExternalTarget={() => { if (skillOpenOrigin === 'external') onReturnFromExternalSkill?.(); else setMode(skillOpenOrigin === 'myagent' ? 'myagent' : 'worlds'); setSkillOpenOrigin(null); }} /></Suspense></div>
+        ? <div className="min-h-0 flex-1 overflow-hidden"><Suspense fallback={<div className="grid h-full place-items-center bg-[#EAEAEA] font-pixel text-[8px]">LOADING SKILLS...</div>}><MusicAgentsTab embedded openTarget={externalSkillTarget ?? requestedSkillTarget} openTargetBackLabel={externalSkillTarget ? externalSkillBackLabel : skillOpenOrigin === 'myagent' ? '返回 My Agent' : '返回 Plaza'} onRunningChange={setSkillRunning} onOpenCanvasSkill={(id) => { setCanvasSkillId(id); setMode('canvas'); }} onOpenTargetHandled={() => { if (externalSkillTarget) { setSkillOpenOrigin('external'); onExternalSkillTargetHandled?.(); } else { if (!skillOpenOrigin) setSkillOpenOrigin('plaza'); setRequestedSkillTarget(null); } }} onReturnFromExternalTarget={() => { if (skillOpenOrigin === 'external') onReturnFromExternalSkill?.(); else setMode(skillOpenOrigin === 'myagent' ? 'myagent' : 'worlds'); setSkillOpenOrigin(null); }} /></Suspense></div>
+        : mode === 'canvas'
+        ? <div className="min-h-0 flex-1 overflow-hidden"><Suspense fallback={<div className="grid h-full place-items-center bg-[#EAEAEA] font-pixel text-[8px]">LOADING CANVAS...</div>}><SkillCanvasTab skillId={canvasSkillId} /></Suspense></div>
         : mode === 'myagent'
         ? buildingWorld
           ? <WorldDraftBuilder draft={editingWorldDraft} onChange={(next) => { setEditingWorldDraft(next); setDraftSaved(false); setDraftSaveError(null); }} onBack={() => { setEditingWorldDraft(worldDraft); setDraftSaveError(null); setBuildingWorld(false); }} saved={draftSaved} saveError={draftSaveError} onSave={() => { try { const saved = writePlazaWorldDraft(editingWorldDraft); setWorldDraft(saved); setEditingWorldDraft(saved); setDraftSaved(true); setDraftSaveError(null); } catch { setDraftSaved(false); setDraftSaveError('本机草稿保存失败'); } }} onDelete={() => { deletePlazaWorldDraft(); setWorldDraft(DEFAULT_WORLD_DRAFT); setEditingWorldDraft(DEFAULT_WORLD_DRAFT); setDraftSaved(false); setDraftSaveError(null); setBuildingWorld(false); }} />
