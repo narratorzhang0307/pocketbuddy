@@ -1,6 +1,7 @@
 // Skills tab —— Frost Agent 的能力控制台（Skill / harness / pipeline）
 // 内容静态提炼自 frost-agent/ARCHITECTURE.md 与各 contract.md
 import { lazy, Suspense, useState, useEffect, useMemo } from 'react';
+import { Trash2, WandSparkles } from 'lucide-react';
 import OnDeviceBrainPanel from './OnDeviceBrainPanel';
 import { getLearnedSkills, subscribeSkills, type LearnedSkill } from '../../../frost-agent/harness/skillForge';
 import { startHeartbeat } from '../../../frost-agent/harness/heartbeat';
@@ -17,6 +18,7 @@ import { skillPublisherForAgent, type SkillPublisher } from '../data/skillPublis
 import { PLAZA_WORLDS } from '../data/plazaWorlds';
 import { resolveSkillRunTarget, type SkillRunTarget } from '../lib/plaza/skillRoutes';
 import { cancelAbandonedHerMotionSessions } from '../lib/health/herMotionSession';
+import { listCanvasSkills, removeCanvasSkill, subscribeCanvasSkills, type CanvasSkillRecord } from '../../../frost-agent/skill-taskmaster';
 
 const POCKET_BUDDY_ASSET = `${import.meta.env.BASE_URL}assets/pocket-buddy/pet-materials-v1/objects-01.png`;
 
@@ -127,9 +129,10 @@ interface MusicAgentsTabProps {
   onOpenTargetHandled?: () => void;
   onReturnFromExternalTarget?: () => void;
   onRunningChange?: (running: boolean) => void;
+  onOpenCanvasSkill?: (skillId: string) => void;
 }
 
-export default function MusicAgentsTab({ embedded = false, openTarget, openTargetBackLabel, onOpenTargetHandled, onReturnFromExternalTarget, onRunningChange }: MusicAgentsTabProps) {
+export default function MusicAgentsTab({ embedded = false, openTarget, openTargetBackLabel, onOpenTargetHandled, onReturnFromExternalTarget, onRunningChange, onOpenCanvasSkill }: MusicAgentsTabProps) {
   const [running, setRunning] = useState<Running>(null);
   const [installProgress, setInstallProgress] = useState<Record<string, number>>({});
   const [installErrors, setInstallErrors] = useState<Record<string, string>>({});
@@ -140,7 +143,10 @@ export default function MusicAgentsTab({ embedded = false, openTarget, openTarge
   const [lianlemaReturnToFrost, setLianlemaReturnToFrost] = useState(false);
   // P2-I：已学技能（点击=路由到其目标 agent）
   const [learned, setLearned] = useState<LearnedSkill[]>(getLearnedSkills());
+  const [canvasSkills, setCanvasSkills] = useState<CanvasSkillRecord[]>(listCanvasSkills());
+  const [canvasDeleteArmed, setCanvasDeleteArmed] = useState<string | null>(null);
   useEffect(() => subscribeSkills(() => setLearned([...getLearnedSkills()])), []);
+  useEffect(() => subscribeCanvasSkills(() => setCanvasSkills(listCanvasSkills())), []);
   useEffect(() => {
     cancelAbandonedHerMotionSessions();
     ensureBuiltinSkills();
@@ -286,6 +292,28 @@ export default function MusicAgentsTab({ embedded = false, openTarget, openTarge
           </div>
           <span className="grid min-h-11 w-[76px] shrink-0 place-items-center border-2 border-black bg-[#ffd65a] px-1 text-center font-pixel text-[6px] leading-relaxed text-black shadow-[2px_2px_0_#000]">▶ RUN</span>
         </button>
+
+        {canvasSkills.length > 0 && (
+          <section>
+            <div className="mb-2 flex items-end justify-between border-b-2 border-black pb-1.5">
+              <span><h2 className="font-pixel text-[10px] tracking-widest">MADE BY YOU</h2><small className="mt-1 block text-[8px] font-bold text-black/45">从 Skill Canvas 编译并保存在本机</small></span>
+              <span className="border border-black bg-[#ffd34e] px-1.5 py-1 font-pixel text-[6px]">{canvasSkills.length}</span>
+            </div>
+            <div className="space-y-2">
+              {canvasSkills.map((record) => {
+                const armed = canvasDeleteArmed === record.graph.skill_id;
+                return <article key={record.graph.skill_id} className="grid grid-cols-[1fr_auto] overflow-hidden border-2 border-black bg-[#fff9e8] shadow-[2px_2px_0_#000]">
+                  <button type="button" onClick={() => onOpenCanvasSkill?.(record.graph.skill_id)} className="grid min-w-0 grid-cols-[46px_1fr_auto] items-center gap-2.5 p-2.5 text-left active:bg-[#00ff88]/10">
+                    <span className="grid h-11 w-11 place-items-center rounded-full border-2 border-black bg-[#00ff88]"><WandSparkles className="h-5 w-5" /></span>
+                    <span className="min-w-0"><b className="block truncate text-[11px]">{record.graph.title}</b><small className="mt-1 block truncate text-[8px] text-black/45">{record.graph.nodes.length} 个积木 · {record.graph.permissions.length} 项权限 · {record.latest_run ? '已有 Evidence' : '待试跑'}</small><span className="mt-1.5 inline-block border border-black bg-white px-1.5 py-0.5 font-pixel text-[5px]">SKILL TASKMASTER</span></span>
+                    <span className="border-2 border-black bg-white px-2 py-2 font-pixel text-[6px]">打开</span>
+                  </button>
+                  <button type="button" aria-label={armed ? `确认卸载 ${record.graph.title}` : `卸载 ${record.graph.title}`} onClick={() => { if (armed) { removeCanvasSkill(record.graph.skill_id); setCanvasDeleteArmed(null); } else setCanvasDeleteArmed(record.graph.skill_id); }} className={`grid min-w-10 place-items-center border-l-2 border-black px-1 text-[7px] font-bold ${armed ? 'bg-[#fff0ed] text-[#b3261e]' : 'bg-white text-black/35'}`}>{armed ? '确认' : <Trash2 className="h-4 w-4" />}</button>
+                </article>;
+              })}
+            </div>
+          </section>
+        )}
 
         {groups.map((g) => (
           <div key={g.title}>
