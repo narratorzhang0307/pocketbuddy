@@ -1038,7 +1038,7 @@ export function SkillsPanel({ buddy }: { buddy: PocketBuddy }) {
   return (
     <section className="pbf-skills">
       <header className="pbf-panel-intro">
-        <span>SKILL DECK</span>
+        <span>技能能力</span>
         <h2>{buddy.name} 的能力卡</h2>
         <p>独立加载 · 证据升级 · 可暂停 · 可回滚</p>
       </header>

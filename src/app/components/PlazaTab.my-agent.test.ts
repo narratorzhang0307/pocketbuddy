@@ -9,17 +9,15 @@ describe('Skills 顶部 MY AGENT 子页', () => {
     'utf8',
   );
 
-  it('顶部只保留我的技能、卡牌实验与智能体世界三个子页', () => {
+  it('顶部只保留我的技能、技能画布与智能体世界三个子页', () => {
     expect(plazaSource).toContain('grid grid-cols-3');
     const skills = plazaSource.indexOf('>我的技能</button>');
-    const cardLab = plazaSource.indexOf('>卡牌实验</button>');
+    const canvas = plazaSource.indexOf('>技能画布</button>');
     const agentWorld = plazaSource.indexOf('>智能体世界</button>');
     expect(skills).toBeGreaterThan(-1);
-    expect(plazaSource).not.toContain('>技能画布</button>');
-    expect(cardLab).toBeGreaterThan(skills);
-    expect(agentWorld).toBeGreaterThan(cardLab);
-    expect(plazaSource).toContain('visualStyle="editorial"');
-    expect(plazaSource).toContain("setMode('canvasLab')");
+    expect(canvas).toBeGreaterThan(skills);
+    expect(agentWorld).toBeGreaterThan(canvas);
+    expect(plazaSource).toContain("setMode('canvas')");
   });
 
   it('Agent World 首页不再展示重复的网络统计与流程说明', () => {

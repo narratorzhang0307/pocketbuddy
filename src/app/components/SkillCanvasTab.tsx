@@ -12,9 +12,8 @@ import {
 import { getSkillAvatar, recommendSkillAvatar, SKILL_AVATARS } from '../data/skillAvatarCatalog';
 
 type Stage = 'sketch' | 'structure' | 'run';
-export type CardVisualStyle = 'signal' | 'editorial';
 
-interface Props { skillId?: string | null; onSaved?: () => void; visualStyle?: CardVisualStyle }
+interface Props { skillId?: string | null; onSaved?: () => void }
 
 type CardFamily = '启动条件' | '数据输入' | '处理与模型' | '流程控制' | '动作输出' | '状态与证据';
 type DragSource = { kind: 'library'; capability: SkillBlockCapability } | { kind: 'slot'; nodeId: string };
@@ -92,137 +91,43 @@ function RunStatus({ trace, visibleSteps }: { trace: SkillRunTrace; visibleSteps
   })}</div>;
 }
 
-function AbilityArtwork({ block, className = '', visualStyle = 'signal' }: { block: AbilityBlock; className?: string; visualStyle?: CardVisualStyle }) {
-  const editorial = visualStyle === 'editorial';
-  const ink = editorial ? '#171717' : block.capability === 'trigger.manual' || block.capability === 'action.voice' ? '#23438f' : '#d44b38';
-  const paper = editorial ? 'none' : block.color;
-  const accent = editorial ? 'none' : block.color;
-  const line = { fill: 'none', stroke: ink, strokeWidth: 3, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  const microText = { fill: editorial ? 'transparent' : ink, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 7, fontWeight: 800 };
-  const diagram = (() => {
-    switch (block.capability) {
-      case 'trigger.manual':
-        return <>
-          <rect x="16" y="38" width="50" height="34" rx="9" fill={accent} stroke={ink} strokeWidth="3" />
-          <text x="41" y="59" textAnchor="middle" style={microText}>用户</text>
-          <path d="M70 55h23" {...line} /><path d="m87 49 7 6-7 6" {...line} />
-          <circle cx="118" cy="55" r="20" fill={paper} stroke={ink} strokeWidth="3" />
-          <path d="m113 45 15 10-15 10Z" fill={accent} stroke={ink} strokeWidth="2.5" strokeLinejoin="round" />
-          <text x="118" y="88" textAnchor="middle" style={microText}>创建运行</text>
-        </>;
-      case 'sensor.location':
-        return <>
-          <path d="M18 82c20-2 21-25 42-25 18 0 18 17 34 17 17 0 24-19 43-19" stroke={accent} strokeWidth="8" strokeLinecap="round" fill="none" />
-          <path d="M18 82c20-2 21-25 42-25 18 0 18 17 34 17 17 0 24-19 43-19" stroke={ink} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="5 6" fill="none" />
-          <circle cx="25" cy="81" r="7" fill={paper} stroke={ink} strokeWidth="3" />
-          <path d="M114 23c-10 0-18 8-18 18 0 14 18 31 18 31s18-17 18-31c0-10-8-18-18-18Z" fill={accent} stroke={ink} strokeWidth="3" />
-          <circle cx="114" cy="41" r="6" fill={paper} stroke={ink} strokeWidth="2.5" />
-          <text x="28" y="31" style={microText}>GPS · 坐标点</text>
-        </>;
-      case 'sensor.health':
-        return <>
-          <rect x="17" y="25" width="126" height="49" rx="10" fill={paper} stroke={ink} strokeWidth="3" />
-          <path d="M27 52h20l7-13 12 27 10-35 10 21h16l7-12 8 12h16" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <path d="M27 52h20l7-13 12 27 10-35 10 21h16l7-12 8 12h16" {...line} />
-          <rect x="25" y="82" width="30" height="12" rx="6" fill={accent} stroke={ink} strokeWidth="2" /><text x="40" y="90.5" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>睡眠</text>
-          <rect x="65" y="82" width="30" height="12" rx="6" fill={accent} stroke={ink} strokeWidth="2" /><text x="80" y="90.5" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>HRV</text>
-          <rect x="105" y="82" width="30" height="12" rx="6" fill={accent} stroke={ink} strokeWidth="2" /><text x="120" y="90.5" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>恢复</text>
-        </>;
-      case 'model.qwen':
-        return <>
-          {[32, 55, 78].map((y) => <circle key={y} cx="25" cy={y} r="6" fill={accent} stroke={ink} strokeWidth="2.5" />)}
-          <path d="M31 32 59 44M31 55h28M31 78l28-12M103 55h26" {...line} />
-          <path d="m123 49 7 6-7 6" {...line} />
-          <rect x="59" y="30" width="44" height="50" rx="10" fill={accent} stroke={ink} strokeWidth="3" />
-          <path d="M72 45h18M72 55h18M72 65h12" {...line} />
-          <text x="81" y="94" textAnchor="middle" style={microText}>上下文 → 决策</text>
-        </>;
-      case 'model.pose':
-        return <>
-          <path d="M22 23v16M22 23h16M138 23v16M138 23h-16M22 87V71M22 87h16M138 87V71M138 87h-16" {...line} />
-          <circle cx="80" cy="30" r="9" fill={accent} stroke={ink} strokeWidth="3" />
-          <path d="M80 39v27M80 48 58 57M80 48l23 10M80 66 64 88M80 66l18 22" {...line} />
-          {[80, 58, 103, 64, 98].map((x, index) => <circle key={`${x}-${index}`} cx={x} cy={[48, 57, 58, 88, 88][index]} r="4" fill={accent} stroke={ink} strokeWidth="2" />)}
-          <text x="126" y="101" textAnchor="end" style={microText}>帧 → 姿态</text>
-        </>;
-      case 'gate.safety':
-        return <>
-          <circle cx="23" cy="55" r="7" fill={accent} stroke={ink} strokeWidth="3" />
-          <path d="M30 55h22M106 55h12M118 55v-20h14M118 55v20h14" {...line} />
-          <path d="M78 28 105 55 78 82 51 55Z" fill={accent} stroke={ink} strokeWidth="3" />
-          <path d="m68 55 7 7 14-16" {...line} />
-          <rect x="129" y="26" width="24" height="18" rx="5" fill={paper} stroke={ink} strokeWidth="2.5" /><text x="141" y="38" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>继续</text>
-          <rect x="129" y="66" width="24" height="18" rx="5" fill={paper} stroke={ink} strokeWidth="2.5" /><text x="141" y="78" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>停止</text>
-          <text x="23" y="77" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>风险</text>
-        </>;
-      case 'action.voice':
-        return <>
-          <rect x="16" y="33" width="38" height="44" rx="7" fill={paper} stroke={ink} strokeWidth="3" />
-          <path d="M25 45h20M25 55h15M25 65h18" {...line} />
-          <path d="M58 55h18M70 49l7 6-7 6" {...line} />
-          {[13, 24, 36, 50, 36, 24, 13].map((height, index) => <rect key={index} x={86 + index * 8} y={55 - height / 2} width="4" height={height} rx="2" fill={index === 3 ? accent : paper} stroke={ink} strokeWidth="2" />)}
-          <text x="36" y="91" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>通知文案</text><text x="114" y="91" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>语音输出</text>
-        </>;
-      case 'store.local':
-        return <>
-          <rect x="16" y="35" width="40" height="48" rx="6" fill={paper} stroke={ink} strokeWidth="3" />
-          <path d="M26 48h20M26 58h15M26 68h18" {...line} />
-          <path d="M61 58h19M74 52l7 6-7 6" {...line} />
-          <ellipse cx="111" cy="36" rx="25" ry="10" fill={accent} stroke={ink} strokeWidth="3" />
-          <path d="M86 36v39c0 6 11 10 25 10s25-4 25-10V36M86 55c0 6 11 10 25 10s25-4 25-10" {...line} />
-          <path d="m104 74 6 6 13-15" stroke={ink} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <text x="36" y="95" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>结果 + 证据</text>
-        </>;
-    }
-  })();
-  if (editorial) {
-    const shapeIndex = Number(block.number);
-    const technicalLabel = block.capability.split('.')[1].toUpperCase();
-    const artLayout = EDITORIAL_ART_LAYOUT[block.capability];
-    return <div role="img" aria-label={`${block.label}编辑卡片风格图示`} className={`relative grid place-items-center overflow-hidden bg-white ${className}`}>
-      <svg viewBox="0 0 160 200" aria-hidden="true" className="h-full w-full select-none">
-        <rect width="160" height="200" fill="#fff" />
-        {shapeIndex === 1 && <circle cx="80" cy="101" r="59" fill={block.color} />}
-        {shapeIndex === 2 && <rect x="22" y="43" width="116" height="116" fill={block.color} transform="rotate(-7 80 101)" />}
-        {shapeIndex === 3 && <rect x="12" y="53" width="136" height="96" rx="21" fill={block.color} />}
-        {shapeIndex === 4 && <path d="M80 31 149 101 80 171 11 101Z" fill={block.color} />}
-        {shapeIndex === 5 && <path d="M80 28 151 165 9 165Z" fill={block.color} />}
-        {shapeIndex === 6 && <path d="M80 31 145 67 145 136 80 171 15 136 15 67Z" fill={block.color} />}
-        {shapeIndex === 7 && <circle cx="80" cy="101" r="59" fill={block.color} />}
-        {shapeIndex === 8 && <rect x="21" y="42" width="118" height="118" rx="4" fill={block.color} transform="rotate(7 80 101)" />}
-        <image
-          href={`${EDITORIAL_ART_BASE}${block.editorialArtwork}`}
-          x={artLayout.x}
-          y={artLayout.y}
-          width={artLayout.width}
-          height={artLayout.height}
-          preserveAspectRatio="xMidYMid meet"
-          style={{ filter: 'contrast(180%)', mixBlendMode: 'multiply' }}
-        />
-        <text x="10" y="20" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="14" fontWeight="900">{block.label}</text>
-        <text x="151" y="12" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="7" fontWeight="900" transform="rotate(90 151 12)">{block.family}</text>
-        <text x="10" y="188" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="7" fontWeight="900" transform="rotate(-90 10 188)">模块 {block.number}</text>
-        <text x="150" y="190" textAnchor="end" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="10" fontWeight="900">{technicalLabel}</text>
-      </svg>
-    </div>;
-  }
-  return <div
-    role="img"
-    aria-label={`${block.label}功能模块图示`}
-    className={`relative grid place-items-center overflow-hidden ${className}`}
-    style={{ background: block.color }}
-  >
-    <svg viewBox="0 0 160 110" aria-hidden="true" className="h-[82%] w-[88%] select-none">
-      <rect x="3" y="3" width="154" height="104" rx="17" fill={paper} stroke={ink} strokeWidth="3" />
-      {diagram}
+function AbilityArtwork({ block, className = '' }: { block: AbilityBlock; className?: string }) {
+  const ink = '#171717';
+  const shapeIndex = Number(block.number);
+  const technicalLabel = block.capability.split('.')[1].toUpperCase();
+  const artLayout = EDITORIAL_ART_LAYOUT[block.capability];
+  return <div role="img" aria-label={`${block.label}编辑卡片风格图示`} className={`relative grid place-items-center overflow-hidden bg-white ${className}`}>
+    <svg viewBox="0 0 160 200" aria-hidden="true" className="h-full w-full select-none">
+      <rect width="160" height="200" fill="#fff" />
+      {shapeIndex === 1 && <circle cx="80" cy="101" r="59" fill={block.color} />}
+      {shapeIndex === 2 && <rect x="22" y="43" width="116" height="116" fill={block.color} transform="rotate(-7 80 101)" />}
+      {shapeIndex === 3 && <rect x="12" y="53" width="136" height="96" rx="21" fill={block.color} />}
+      {shapeIndex === 4 && <path d="M80 31 149 101 80 171 11 101Z" fill={block.color} />}
+      {shapeIndex === 5 && <path d="M80 28 151 165 9 165Z" fill={block.color} />}
+      {shapeIndex === 6 && <path d="M80 31 145 67 145 136 80 171 15 136 15 67Z" fill={block.color} />}
+      {shapeIndex === 7 && <circle cx="80" cy="101" r="59" fill={block.color} />}
+      {shapeIndex === 8 && <rect x="21" y="42" width="118" height="118" rx="4" fill={block.color} transform="rotate(7 80 101)" />}
+      <image
+        href={`${EDITORIAL_ART_BASE}${block.editorialArtwork}`}
+        x={artLayout.x}
+        y={artLayout.y}
+        width={artLayout.width}
+        height={artLayout.height}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ filter: 'contrast(180%)', mixBlendMode: 'multiply' }}
+      />
+      <text x="10" y="20" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="14" fontWeight="900">{block.label}</text>
+      <text x="151" y="12" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="7" fontWeight="900" transform="rotate(90 151 12)">{block.family}</text>
+      <text x="10" y="188" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="7" fontWeight="900" transform="rotate(-90 10 188)">模块 {block.number}</text>
+      <text x="150" y="190" textAnchor="end" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="10" fontWeight="900">{technicalLabel}</text>
     </svg>
   </div>;
 }
 
 function MiniAbilityCard({
-  block, label, placed = false, visualStyle = 'signal', onOpen, onRemove, onDragStart,
+  block, label, placed = false, onOpen, onRemove, onDragStart,
 }: {
-  block: AbilityBlock; label?: string; placed?: boolean; visualStyle?: CardVisualStyle; onOpen: () => void;
+  block: AbilityBlock; label?: string; placed?: boolean; onOpen: () => void;
   onRemove?: () => void; onDragStart: (event: ReactDragEvent<HTMLElement>) => void;
 }) {
   return <article
@@ -233,18 +138,12 @@ function MiniAbilityCard({
     onDragStart={onDragStart}
     onClick={onOpen}
     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}
-    className={`${placed ? 'w-full' : 'w-[126px] shrink-0'} group relative cursor-grab overflow-hidden ${visualStyle === 'editorial' ? 'rounded-[3px] bg-white' : 'rounded-[14px] bg-[#f8f1e3]'} border-2 border-[#26231f] text-left active:cursor-grabbing`}
+    className={`${placed ? 'w-full' : 'w-[126px] shrink-0'} group relative cursor-grab overflow-hidden rounded-[3px] border-2 border-[#26231f] bg-white text-left active:cursor-grabbing`}
   >
-    <div className={`relative overflow-hidden ${visualStyle === 'editorial' ? '' : 'border-b-2 border-[#26231f] bg-[#f4ecdc]'}`}>
-      <AbilityArtwork block={block} visualStyle={visualStyle} className={`${placed ? visualStyle === 'editorial' ? 'aspect-[3/4]' : 'aspect-square' : visualStyle === 'editorial' ? 'h-[166px]' : 'h-[92px]'} w-full`} />
-      {visualStyle !== 'editorial' && <span className="absolute left-1.5 top-1.5 rounded-full border border-[#26231f] bg-[#f8f1e3]/95 px-1.5 py-0.5 font-pixel text-[5px]">{block.number}</span>}
+    <div className="relative overflow-hidden">
+      <AbilityArtwork block={block} className={`${placed ? 'aspect-[3/4]' : 'h-[166px]'} w-full`} />
       {placed && <GripVertical className="absolute bottom-1.5 right-1.5 h-3.5 w-3.5 rounded-full border border-[#26231f] bg-[#f8f1e3] p-0.5" />}
     </div>
-    {visualStyle !== 'editorial' && <div className={`${placed ? 'p-1.5' : 'p-2'} min-w-0`} style={{ background: block.color }}>
-      <span className="inline-flex rounded-full border border-[#26231f] bg-[#f8f1e3]/90 px-1.5 py-0.5 text-[6px] font-bold">{block.family}</span>
-      <b className={`${placed ? 'text-[8px]' : 'text-[10px]'} mt-1 block truncate`}>{label || block.label}</b>
-      <small className={`${placed ? 'text-[6px]' : 'text-[7px]'} mt-0.5 block truncate text-black/55`}>{block.detail}</small>
-    </div>}
     {onRemove && <button
       type="button"
       aria-label={`移除${label || block.label}`}
@@ -254,7 +153,7 @@ function MiniAbilityCard({
   </article>;
 }
 
-function AbilityCardDialog({ block, visualStyle = 'signal', onClose, onAdd }: { block: AbilityBlock; visualStyle?: CardVisualStyle; onClose: () => void; onAdd: () => void }) {
+function AbilityCardDialog({ block, onClose, onAdd }: { block: AbilityBlock; onClose: () => void; onAdd: () => void }) {
   const [flipped, setFlipped] = useState(false);
   const definition = CAPABILITY_DEFINITIONS[block.capability];
   const runtimeSignals = [
@@ -272,15 +171,7 @@ function AbilityCardDialog({ block, visualStyle = 'signal', onClose, onAdd }: { 
       </div>
 
       {!flipped ? <div className="flex min-h-0 flex-1 flex-col p-3">
-        <AbilityArtwork block={block} visualStyle={visualStyle} className={`${visualStyle === 'editorial' ? 'h-[350px] rounded-[3px]' : 'h-[246px] rounded-[20px]'} w-full shrink-0 border-2 border-[#26231f]`} />
-        {visualStyle !== 'editorial' && <section className="mt-3 rounded-[18px] border-2 border-[#26231f] px-3 py-2.5" style={{ background: block.color }}>
-          <div className="flex items-center justify-between gap-2">
-            <small className="truncate font-pixel text-[5px] text-black/55">{block.capability}</small>
-            <span className="shrink-0 rounded-full border border-[#26231f] bg-[#f8f1e3]/85 px-2 py-0.5 font-pixel text-[4px]">已启用模块</span>
-          </div>
-          <h2 className="mt-1 text-[21px] font-black leading-none">{block.label}</h2>
-          <p className="mt-1.5 text-[8px] font-black uppercase tracking-wide text-black/60">{block.detail}</p>
-        </section>}
+        <AbilityArtwork block={block} className="h-[350px] w-full shrink-0 rounded-[3px] border-2 border-[#26231f]" />
         <p className="mt-3 border-l-[3px] border-[#26231f] pl-3 text-[9px] leading-relaxed text-black/60">{block.blurb}</p>
         <div className="mt-auto grid grid-cols-2 gap-2 pt-3">
             <button type="button" onClick={() => setFlipped(true)} className="flex items-center justify-center gap-1.5 rounded-full border-2 border-[#26231f] bg-[#f8f1e3] px-3 py-2.5 text-[9px] font-black"><RotateCcw className="h-3.5 w-3.5" />翻到背面</button>
@@ -320,7 +211,7 @@ function AbilityCardDialog({ block, visualStyle = 'signal', onClose, onAdd }: { 
   </div>;
 }
 
-export default function SkillCanvasTab({ skillId, onSaved, visualStyle = 'signal' }: Props) {
+export default function SkillCanvasTab({ skillId, onSaved }: Props) {
   const sequenceRef = useRef(100);
   const deckScrollRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<Stage>('sketch');
@@ -462,7 +353,6 @@ export default function SkillCanvasTab({ skillId, onSaved, visualStyle = 'signal
             <div ref={deckScrollRef} onScroll={updateDeckEdges} className="flex gap-2.5 overflow-x-auto px-11 pb-2">{filteredBlocks.map((block) => <MiniAbilityCard
               key={block.capability}
               block={block}
-              visualStyle={visualStyle}
               onOpen={() => setSelectedCapability(block.capability)}
               onDragStart={(event) => beginDrag(event, { kind: 'library', capability: block.capability })}
             />)}</div>
@@ -493,7 +383,6 @@ export default function SkillCanvasTab({ skillId, onSaved, visualStyle = 'signal
                   block={blockDefinition(node.capability)}
                   label={node.label}
                   placed
-                  visualStyle={visualStyle}
                   onOpen={() => setSelectedCapability(node.capability)}
                   onRemove={() => removeNode(node.id)}
                   onDragStart={(event) => beginDrag(event, { kind: 'slot', nodeId: node.id })}
@@ -566,7 +455,6 @@ export default function SkillCanvasTab({ skillId, onSaved, visualStyle = 'signal
     {selectedBlock && <AbilityCardDialog
       key={selectedBlock.capability}
       block={selectedBlock}
-      visualStyle={visualStyle}
       onClose={() => setSelectedCapability(null)}
       onAdd={() => { addBlock(selectedBlock.capability); setSelectedCapability(null); }}
     />}
