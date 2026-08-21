@@ -125,6 +125,9 @@ export function compileSkillDraft(input: SkillCanvasDraft): SkillCompileResult {
     skill_id: structured.id,
     title: structured.title.trim().slice(0, 28),
     description: structured.prompt.trim().slice(0, 120) || `由 ${structured.nodes.length} 个能力积木组成`,
+    ...(structured.avatar_id ? { avatar_id: structured.avatar_id } : {}),
+    ...(structured.avatar_name !== undefined ? { avatar_name: structured.avatar_name.trim().slice(0, 18) } : {}),
+    ...(structured.avatar_role !== undefined ? { avatar_role: structured.avatar_role.trim().slice(0, 32) } : {}),
     version: '0.1.0',
     nodes: structured.nodes.map((node, order) => ({
       id: node.id,

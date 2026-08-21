@@ -1,50 +1,62 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import {
-  ArrowLeft, ArrowRight, Camera, Check, Database, Footprints, HeartPulse,
-  MapPin, Play, Save, ShieldCheck, Sparkles, Volume2, WandSparkles,
+  ArrowLeft, ArrowRight, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Database, Footprints, HeartPulse,
+  GripVertical, MapPin, Play, Plus, RotateCcw, Save, ShieldCheck, Sparkles,
+  Volume2, WandSparkles, X,
 } from 'lucide-react';
 import {
-  compileSkillDraft, getCanvasSkill, previewSkillGraph, saveCanvasSkill,
+  CAPABILITY_DEFINITIONS, compileSkillDraft, getCanvasSkill, previewSkillGraph, saveCanvasSkill,
   type CompiledSkillGraph, type SkillBlockCapability, type SkillCanvasDraft,
   type SkillCanvasNode, type SkillRunTrace,
 } from '../../../frost-agent/skill-taskmaster';
-import SkillDeckBuilder, { type SkillCardDefinition, type SkillDeckTemplate } from './SkillDeckBuilder';
+import { getSkillAvatar, recommendSkillAvatar, SKILL_AVATARS } from '../data/skillAvatarCatalog';
 
 type Stage = 'sketch' | 'structure' | 'run';
-type TemplateId = 'morning-run' | 'gentle-recovery' | 'outdoor-reset';
+export type CardVisualStyle = 'signal' | 'editorial';
 
-interface Props { skillId?: string | null; onSaved?: () => void }
+interface Props { skillId?: string | null; onSaved?: () => void; visualStyle?: CardVisualStyle }
 
-const BLOCKS: SkillCardDefinition[] = [
-  { capability: 'trigger.manual', label: '开始', detail: '点击或定时', family: '触发', color: '#ffd34e', icon: Play, serial: '01', description: '告诉 Skill 何时开始行动，是每套卡组的第一声口令。', input: '用户点击、语音或时间条件', output: '一次可审计的启动事件', permission: '无需额外权限', metrics: { speed: 5, reliability: 5, privacy: 5, energy: 1 } },
-  { capability: 'sensor.location', label: '当前位置', detail: '路线与距离', family: '感知', color: '#7fcfff', icon: MapPin, serial: '02', description: '读取获得授权的位置摘要，为路线、距离和户外行动提供现场感。', input: '系统定位与地图上下文', output: '位置、距离与路线意图', permission: '运行时请求位置', metrics: { speed: 4, reliability: 4, privacy: 2, energy: 3 } },
-  { capability: 'sensor.health', label: '身体状态', detail: 'HRV 与恢复', family: '感知', color: '#7fcfff', icon: HeartPulse, serial: '03', description: '把睡眠、HRV 与近期负荷整理成最少必要的身体状态摘要。', input: '本机健康聚合字段', output: '恢复与负荷摘要', permission: '请求健康摘要', metrics: { speed: 4, reliability: 4, privacy: 3, energy: 2 } },
-  { capability: 'model.qwen', label: 'Frost 判断', detail: 'Qwen 推理', family: '思考', color: '#7cff6b', icon: Sparkles, serial: '04', description: '结合目标和现场状态形成下一步建议，但不会替代确定性安全规则。', input: '目标、上下文与能力结果', output: '结构化判断与解释', permission: '调用端侧或自托管模型', metrics: { speed: 3, reliability: 4, privacy: 4, energy: 4 } },
-  { capability: 'model.pose', label: '看懂动作', detail: '本地姿态', family: '思考', color: '#7cff6b', icon: Camera, serial: '05', description: '在本地提取动作关键点，以连续帧与置信度判断动作是否稳定。', input: '获得授权的相机帧', output: '姿态关键点与动作事件', permission: '请求摄像头与本地模型', metrics: { speed: 4, reliability: 4, privacy: 4, energy: 4 } },
-  { capability: 'gate.safety', label: '安全守门', detail: '异常就停止', family: '守护', color: '#cdb7ff', icon: ShieldCheck, serial: '06', description: '把疼痛、眩晕、呼吸异常和用户停止请求变成不可绕过的边界。', input: '身体事件与用户反馈', output: '继续、降级或立即停止', permission: '只读取当前任务事件', metrics: { speed: 5, reliability: 5, privacy: 5, energy: 1 } },
-  { capability: 'action.voice', label: '陪我行动', detail: '语音与提醒', family: '行动', color: '#ff9b69', icon: Volume2, serial: '07', description: '把计划变成合适时机的一句陪伴、提醒或行动确认。', input: '已确认的行动指令', output: '语音、震动或界面提醒', permission: '请求通知能力', metrics: { speed: 5, reliability: 4, privacy: 4, energy: 2 } },
-  { capability: 'store.local', label: '记住结果', detail: '只存在本机', family: '记忆', color: '#f4edda', icon: Database, serial: '08', description: '把完成结果、主观感受和证据保存在本机，供下一次任务复盘。', input: '结果、反馈与 Evidence', output: '本地健康事件记录', permission: '写入本地健康记忆', metrics: { speed: 5, reliability: 5, privacy: 5, energy: 1 } },
+type CardFamily = '启动条件' | '数据输入' | '处理与模型' | '流程控制' | '动作输出' | '状态与证据';
+type DragSource = { kind: 'library'; capability: SkillBlockCapability } | { kind: 'slot'; nodeId: string };
+
+const BLOCKS: Array<{
+  capability: SkillBlockCapability; number: string; label: string; detail: string; family: CardFamily;
+  color: string; icon: typeof Play; editorialArtwork: string; blurb: string; input: string; output: string; provider: string;
+  stats: { instant: number; privacy: number; evidence: number; risk: number };
+}> = [
+  { capability: 'trigger.manual', number: '01', label: '手动启动', detail: 'Manual Trigger', family: '启动条件', color: '#e5ba58', icon: Play, editorialArtwork: '01-manual-trigger.png', blurb: '由用户明确点击后创建一次技能运行（Skill Run）。', input: '用户确认', output: 'task.started', provider: '宿主界面', stats: { instant: 5, privacy: 5, evidence: 3, risk: 1 } },
+  { capability: 'sensor.location', number: '02', label: '位置数据', detail: 'Location Input', family: '数据输入', color: '#83b8d2', icon: MapPin, editorialArtwork: '02-location-input.png', blurb: '按最小权限读取坐标、精度与时间戳。', input: '定位授权', output: 'location.point', provider: '手机 GPS', stats: { instant: 5, privacy: 2, evidence: 5, risk: 3 } },
+  { capability: 'sensor.health', number: '03', label: '健康摘要', detail: 'Readiness Input', family: '数据输入', color: '#72b9ad', icon: HeartPulse, editorialArtwork: '03-health-summary.png', blurb: '读取经确认的睡眠、HRV 与恢复摘要，不自行诊断。', input: 'Health Event', output: 'readiness.summary', provider: '本机健康桥', stats: { instant: 4, privacy: 2, evidence: 5, risk: 4 } },
+  { capability: 'model.qwen', number: '04', label: '语义决策', detail: 'Qwen Processor', family: '处理与模型', color: '#a8b77e', icon: Sparkles, editorialArtwork: '04-semantic-decision.png', blurb: '把结构化上下文转换为候选动作，不直接执行副作用。', input: '结构化上下文', output: 'candidate.action', provider: 'Qwen / MNN', stats: { instant: 3, privacy: 4, evidence: 3, risk: 3 } },
+  { capability: 'model.pose', number: '05', label: '姿态识别', detail: 'Pose Processor', family: '处理与模型', color: '#a99bc6', icon: Camera, editorialArtwork: '05-pose-recognition.png', blurb: '从连续帧输出可复查的姿态信号，低置信度返回 unknown。', input: '相机帧', output: 'pose.signal', provider: '本地视觉', stats: { instant: 4, privacy: 3, evidence: 4, risk: 4 } },
+  { capability: 'gate.safety', number: '06', label: '安全门', detail: 'Safety Gate', family: '流程控制', color: '#ad91b8', icon: ShieldCheck, editorialArtwork: '06-safety-gate.png', blurb: '在疼痛、眩晕或停止指令出现时阻断后续动作。', input: '风险信号', output: 'safe / stop', provider: '确定性规则', stats: { instant: 5, privacy: 5, evidence: 5, risk: 1 } },
+  { capability: 'action.voice', number: '07', label: '语音通知', detail: 'Notification Action', family: '动作输出', color: '#df8a5f', icon: Volume2, editorialArtwork: '07-voice-notification.png', blurb: '把已确认的下一步发送为简短语音或系统提醒。', input: 'action.copy', output: 'user.notified', provider: '宿主通知', stats: { instant: 5, privacy: 4, evidence: 2, risk: 2 } },
+  { capability: 'store.local', number: '08', label: '证据写入', detail: 'Evidence Store', family: '状态与证据', color: '#95a77a', icon: Database, editorialArtwork: '08-evidence-store.png', blurb: '将结果、Evidence 与运行状态绑定并保存在本机。', input: 'result + evidence', output: 'local.memory', provider: '本机存储', stats: { instant: 4, privacy: 5, evidence: 5, risk: 1 } },
 ];
 
-const TEMPLATES: Array<SkillDeckTemplate & { id: TemplateId }> = [
-  { id: 'morning-run', label: '晨跑伙伴', detail: '恢复状态 → 安全陪跑', accent: '#7cff6b' },
-  { id: 'gentle-recovery', label: '温和恢复', detail: '看懂动作 → 温柔提醒', accent: '#d8c9ff' },
-  { id: 'outdoor-reset', label: '出门透气', detail: '位置环境 → 散步陪伴', accent: '#bfefff' },
-];
+type AbilityBlock = (typeof BLOCKS)[number];
+
+const FAMILY_FILTERS: Array<'全部' | CardFamily> = ['全部', '启动条件', '数据输入', '处理与模型', '流程控制', '动作输出', '状态与证据'];
+const STAGE_LABEL = { trigger: '启动条件', sense: '数据输入', think: '处理与模型', guard: '流程控制', act: '动作输出', remember: '状态与证据' } as const;
 
 const PERMISSION_LABEL: Record<string, string> = {
-  'read:location': '位置', 'read:health_events': '健康摘要',
-  'run:model': '端侧 / Qwen 模型', 'capture:camera': '摄像头',
-  'notify:user': '提醒', 'write:health_events': '本地健康记忆',
+  'read:location': '位置', 'read:health_events': '健康摘要', 'run:model': '端侧 / Qwen 模型',
+  'capture:camera': '摄像头', 'notify:user': '提醒', 'write:health_events': '本地健康记忆',
 };
 
-const STAGES: Array<{ id: Stage; number: string; label: string; hint: string }> = [
-  { id: 'sketch', number: '01', label: '草图', hint: '先把想法摆上来' },
-  { id: 'structure', number: '02', label: '结构', hint: 'Frost 整理依赖' },
-  { id: 'run', number: '03', label: '试跑', hint: 'Taskmaster 验证' },
-];
+const EDITORIAL_ART_BASE = `${import.meta.env.BASE_URL}assets/skill-cards/editorial-line-art-v1/`;
+const EDITORIAL_ART_LAYOUT: Record<SkillBlockCapability, { x: number; y: number; width: number; height: number }> = {
+  'trigger.manual': { x: 15, y: 37, width: 130, height: 136 },
+  'sensor.location': { x: 14, y: 37, width: 132, height: 137 },
+  'sensor.health': { x: 15, y: 37, width: 130, height: 136 },
+  'model.qwen': { x: 13, y: 37, width: 134, height: 138 },
+  'model.pose': { x: 27, y: 31, width: 106, height: 146 },
+  'gate.safety': { x: 14, y: 37, width: 132, height: 138 },
+  'action.voice': { x: 15, y: 37, width: 130, height: 138 },
+  'store.local': { x: 14, y: 37, width: 132, height: 138 },
+};
 
-function blockDefinition(capability: SkillBlockCapability): SkillCardDefinition {
+function blockDefinition(capability: SkillBlockCapability) {
   return BLOCKS.find((block) => block.capability === capability)!;
 }
 
@@ -53,81 +65,289 @@ function makeNode(capability: SkillBlockCapability, index: number, label?: strin
   return {
     id: `${capability}-${Date.now().toString(36)}-${index}`,
     capability, label: label || block.label, detail: block.detail,
-    x: 5 + (index % 2) * 50 + (index % 3 === 0 ? 2 : 0),
-    y: 58 + Math.floor(index / 2) * 104 + (index % 2 ? 12 : 0),
+    x: 18 + (index % 2) * 174 + (index % 3 === 0 ? 7 : 0),
+    y: 24 + Math.floor(index / 2) * 94 + (index % 2 ? 9 : 0),
   };
 }
 
-function templateDraft(template: TemplateId, existingId?: string): SkillCanvasDraft {
+function emptyDraft(existingId?: string): SkillCanvasDraft {
   const now = new Date().toISOString();
-  const config: Record<TemplateId, { title: string; prompt: string; capabilities: SkillBlockCapability[]; labels: string[] }> = {
-    'morning-run': {
-      title: '晨跑伙伴', prompt: '先看看今天的恢复状态，再安全地陪我完成晨跑。',
-      capabilities: ['trigger.manual', 'sensor.health', 'model.qwen', 'gate.safety', 'action.voice', 'store.local'],
-      labels: ['我说开始', '看看身体', '安排今天', '不舒服就停', '一路陪我', '留下一次复盘'],
-    },
-    'gentle-recovery': {
-      title: '温和恢复', prompt: '看懂我的恢复动作，只做温柔提醒，出现疼痛就停下。',
-      capabilities: ['trigger.manual', 'model.pose', 'model.qwen', 'gate.safety', 'action.voice', 'store.local'],
-      labels: ['准备好了', '看懂动作', '判断节奏', '疼痛就停', '轻声提醒', '记住感受'],
-    },
-    'outdoor-reset': {
-      title: '出门透气', prompt: '根据我所在的位置安排一段轻松散步，并在合适的时候提醒我回家。',
-      capabilities: ['trigger.manual', 'sensor.location', 'model.qwen', 'gate.safety', 'action.voice', 'store.local'],
-      labels: ['想出去走走', '看看附近', '安排散步', '守住边界', '边走边陪', '收好这段路'],
-    },
-  };
-  const selected = config[template];
   return {
     id: existingId || `canvas-${Date.now().toString(36)}`,
-    title: selected.title, prompt: selected.prompt,
-    nodes: selected.capabilities.map((capability, index) => makeNode(capability, index, selected.labels[index])),
+    title: '', prompt: '', nodes: [],
     edges: [], created_at: now, updated_at: now,
   };
 }
 
-function StageRail({ stage, hasTrace, onChange }: { stage: Stage; hasTrace: boolean; onChange: (stage: Stage) => void }) {
-  return <nav aria-label="Skill Canvas 阶段" className="border-b-2 border-black bg-[#f7f1df] px-3 py-2.5">
-    <div className="mx-auto grid max-w-[760px] grid-cols-3">
-      {STAGES.map((item, index) => {
-        const active = stage === item.id;
-        const completed = STAGES.findIndex((candidate) => candidate.id === stage) > index;
-        const enabled = item.id !== 'run' || hasTrace;
-        return <button key={item.id} type="button" disabled={!enabled} onClick={() => onChange(item.id)} className="group relative flex min-w-0 items-center gap-2 px-1 text-left disabled:opacity-25">
-          {index > 0 && <span className={`absolute right-1/2 top-[13px] h-[2px] w-full ${completed || active ? 'bg-black' : 'bg-black/15'}`} />}
-          <span className={`relative z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 border-black font-pixel text-[5px] ${active ? 'bg-black text-[#7cff6b]' : completed ? 'bg-[#7cff6b]' : 'bg-white'}`}>
-            {completed ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : item.number}
-          </span>
-          <span className="relative z-10 min-w-0 bg-[#f7f1df] pr-1"><b className="block text-[9px]">{item.label}</b><small className="hidden truncate text-[6.5px] text-black/40 sm:block">{item.hint}</small></span>
-        </button>;
-      })}
-    </div>
-  </nav>;
+function RunStatus({ trace, visibleSteps }: { trace: SkillRunTrace; visibleSteps: number }) {
+  return <div className="space-y-2">{trace.steps.map((step, index) => {
+    const visible = index < visibleSteps;
+    const active = index === visibleSteps;
+    return <div key={step.node_id} className={`relative grid grid-cols-[34px_1fr_auto] items-center gap-2 border-2 px-2.5 py-2.5 transition-all duration-300 ${visible ? 'border-black bg-white' : active ? 'translate-x-1 border-black bg-[#fff0b5]' : 'border-black/15 bg-white/40 text-black/30'}`}>
+      {index < trace.steps.length - 1 && <span className="absolute left-[25px] top-[42px] h-4 border-l-2 border-dashed border-black/25" />}
+      <span className={`grid h-8 w-8 place-items-center rounded-full border-2 ${visible ? 'border-black bg-[#00ff88]' : active ? 'border-black bg-[#ffd34e]' : 'border-black/15 bg-white'}`}>{visible ? <Check className="h-4 w-4" strokeWidth={3} /> : active ? <Footprints className="h-4 w-4 animate-pulse" /> : <span className="font-pixel text-[6px]">{String(index + 1).padStart(2, '0')}</span>}</span>
+      <span><b className="block text-[10px]">{step.label}</b><small className="mt-0.5 block text-[7px] leading-relaxed text-black/45">{visible ? step.evidence : active ? 'Frost 正在走到这里…' : '等待上一步'}</small></span>
+      <span className="font-pixel text-[5px]">{visible ? '完成' : active ? '当前' : '待执行'}</span>
+    </div>;
+  })}</div>;
 }
 
-function StructuredFlow({ draft }: { draft: SkillCanvasDraft }) {
-  return <div className="border-[3px] border-black bg-[#171a18] p-3 shadow-[5px_5px_0_#000]">
-    <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2"><span className="font-pixel text-[5px] text-[#7cff6b]">COMPILED ORDER</span><span className="font-pixel text-[5px] text-white/35">{draft.nodes.length} STEPS</span></div>
-    {draft.nodes.map((node, index) => { const block = blockDefinition(node.capability); const Icon = block.icon; return <div key={node.id} className="relative mb-2.5 grid grid-cols-[34px_1fr_auto] items-center gap-2.5 border border-white/15 bg-white p-2.5 last:mb-0">
-      {index < draft.nodes.length - 1 && <span className="absolute left-[26px] top-[47px] h-4 border-l-2 border-dotted border-[#7cff6b]" />}<span className="grid h-8 w-8 place-items-center rounded-full border-2 border-black" style={{ background: block.color }}><Icon className="h-4 w-4" /></span><span><small className="font-pixel text-[5px] text-black/35">{String(index + 1).padStart(2, '0')} · {block.family}</small><b className="mt-1 block text-[10px]">{node.label}</b><small className="mt-0.5 block text-[7px] text-black/40">{node.detail}</small></span><ArrowRight className="h-4 w-4 text-black/20" />
-    </div>; })}
+function AbilityArtwork({ block, className = '', visualStyle = 'signal' }: { block: AbilityBlock; className?: string; visualStyle?: CardVisualStyle }) {
+  const editorial = visualStyle === 'editorial';
+  const ink = editorial ? '#171717' : block.capability === 'trigger.manual' || block.capability === 'action.voice' ? '#23438f' : '#d44b38';
+  const paper = editorial ? 'none' : block.color;
+  const accent = editorial ? 'none' : block.color;
+  const line = { fill: 'none', stroke: ink, strokeWidth: 3, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  const microText = { fill: editorial ? 'transparent' : ink, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 7, fontWeight: 800 };
+  const diagram = (() => {
+    switch (block.capability) {
+      case 'trigger.manual':
+        return <>
+          <rect x="16" y="38" width="50" height="34" rx="9" fill={accent} stroke={ink} strokeWidth="3" />
+          <text x="41" y="59" textAnchor="middle" style={microText}>用户</text>
+          <path d="M70 55h23" {...line} /><path d="m87 49 7 6-7 6" {...line} />
+          <circle cx="118" cy="55" r="20" fill={paper} stroke={ink} strokeWidth="3" />
+          <path d="m113 45 15 10-15 10Z" fill={accent} stroke={ink} strokeWidth="2.5" strokeLinejoin="round" />
+          <text x="118" y="88" textAnchor="middle" style={microText}>创建运行</text>
+        </>;
+      case 'sensor.location':
+        return <>
+          <path d="M18 82c20-2 21-25 42-25 18 0 18 17 34 17 17 0 24-19 43-19" stroke={accent} strokeWidth="8" strokeLinecap="round" fill="none" />
+          <path d="M18 82c20-2 21-25 42-25 18 0 18 17 34 17 17 0 24-19 43-19" stroke={ink} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="5 6" fill="none" />
+          <circle cx="25" cy="81" r="7" fill={paper} stroke={ink} strokeWidth="3" />
+          <path d="M114 23c-10 0-18 8-18 18 0 14 18 31 18 31s18-17 18-31c0-10-8-18-18-18Z" fill={accent} stroke={ink} strokeWidth="3" />
+          <circle cx="114" cy="41" r="6" fill={paper} stroke={ink} strokeWidth="2.5" />
+          <text x="28" y="31" style={microText}>GPS · 坐标点</text>
+        </>;
+      case 'sensor.health':
+        return <>
+          <rect x="17" y="25" width="126" height="49" rx="10" fill={paper} stroke={ink} strokeWidth="3" />
+          <path d="M27 52h20l7-13 12 27 10-35 10 21h16l7-12 8 12h16" stroke={accent} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M27 52h20l7-13 12 27 10-35 10 21h16l7-12 8 12h16" {...line} />
+          <rect x="25" y="82" width="30" height="12" rx="6" fill={accent} stroke={ink} strokeWidth="2" /><text x="40" y="90.5" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>睡眠</text>
+          <rect x="65" y="82" width="30" height="12" rx="6" fill={accent} stroke={ink} strokeWidth="2" /><text x="80" y="90.5" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>HRV</text>
+          <rect x="105" y="82" width="30" height="12" rx="6" fill={accent} stroke={ink} strokeWidth="2" /><text x="120" y="90.5" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>恢复</text>
+        </>;
+      case 'model.qwen':
+        return <>
+          {[32, 55, 78].map((y) => <circle key={y} cx="25" cy={y} r="6" fill={accent} stroke={ink} strokeWidth="2.5" />)}
+          <path d="M31 32 59 44M31 55h28M31 78l28-12M103 55h26" {...line} />
+          <path d="m123 49 7 6-7 6" {...line} />
+          <rect x="59" y="30" width="44" height="50" rx="10" fill={accent} stroke={ink} strokeWidth="3" />
+          <path d="M72 45h18M72 55h18M72 65h12" {...line} />
+          <text x="81" y="94" textAnchor="middle" style={microText}>上下文 → 决策</text>
+        </>;
+      case 'model.pose':
+        return <>
+          <path d="M22 23v16M22 23h16M138 23v16M138 23h-16M22 87V71M22 87h16M138 87V71M138 87h-16" {...line} />
+          <circle cx="80" cy="30" r="9" fill={accent} stroke={ink} strokeWidth="3" />
+          <path d="M80 39v27M80 48 58 57M80 48l23 10M80 66 64 88M80 66l18 22" {...line} />
+          {[80, 58, 103, 64, 98].map((x, index) => <circle key={`${x}-${index}`} cx={x} cy={[48, 57, 58, 88, 88][index]} r="4" fill={accent} stroke={ink} strokeWidth="2" />)}
+          <text x="126" y="101" textAnchor="end" style={microText}>帧 → 姿态</text>
+        </>;
+      case 'gate.safety':
+        return <>
+          <circle cx="23" cy="55" r="7" fill={accent} stroke={ink} strokeWidth="3" />
+          <path d="M30 55h22M106 55h12M118 55v-20h14M118 55v20h14" {...line} />
+          <path d="M78 28 105 55 78 82 51 55Z" fill={accent} stroke={ink} strokeWidth="3" />
+          <path d="m68 55 7 7 14-16" {...line} />
+          <rect x="129" y="26" width="24" height="18" rx="5" fill={paper} stroke={ink} strokeWidth="2.5" /><text x="141" y="38" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>继续</text>
+          <rect x="129" y="66" width="24" height="18" rx="5" fill={paper} stroke={ink} strokeWidth="2.5" /><text x="141" y="78" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>停止</text>
+          <text x="23" y="77" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>风险</text>
+        </>;
+      case 'action.voice':
+        return <>
+          <rect x="16" y="33" width="38" height="44" rx="7" fill={paper} stroke={ink} strokeWidth="3" />
+          <path d="M25 45h20M25 55h15M25 65h18" {...line} />
+          <path d="M58 55h18M70 49l7 6-7 6" {...line} />
+          {[13, 24, 36, 50, 36, 24, 13].map((height, index) => <rect key={index} x={86 + index * 8} y={55 - height / 2} width="4" height={height} rx="2" fill={index === 3 ? accent : paper} stroke={ink} strokeWidth="2" />)}
+          <text x="36" y="91" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>通知文案</text><text x="114" y="91" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>语音输出</text>
+        </>;
+      case 'store.local':
+        return <>
+          <rect x="16" y="35" width="40" height="48" rx="6" fill={paper} stroke={ink} strokeWidth="3" />
+          <path d="M26 48h20M26 58h15M26 68h18" {...line} />
+          <path d="M61 58h19M74 52l7 6-7 6" {...line} />
+          <ellipse cx="111" cy="36" rx="25" ry="10" fill={accent} stroke={ink} strokeWidth="3" />
+          <path d="M86 36v39c0 6 11 10 25 10s25-4 25-10V36M86 55c0 6 11 10 25 10s25-4 25-10" {...line} />
+          <path d="m104 74 6 6 13-15" stroke={ink} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <text x="36" y="95" textAnchor="middle" style={{ ...microText, fontSize: 5 }}>结果 + 证据</text>
+        </>;
+    }
+  })();
+  if (editorial) {
+    const shapeIndex = Number(block.number);
+    const technicalLabel = block.capability.split('.')[1].toUpperCase();
+    const artLayout = EDITORIAL_ART_LAYOUT[block.capability];
+    return <div role="img" aria-label={`${block.label}编辑卡片风格图示`} className={`relative grid place-items-center overflow-hidden bg-white ${className}`}>
+      <svg viewBox="0 0 160 200" aria-hidden="true" className="h-full w-full select-none">
+        <rect width="160" height="200" fill="#fff" />
+        {shapeIndex === 1 && <circle cx="80" cy="101" r="59" fill={block.color} />}
+        {shapeIndex === 2 && <rect x="22" y="43" width="116" height="116" fill={block.color} transform="rotate(-7 80 101)" />}
+        {shapeIndex === 3 && <rect x="12" y="53" width="136" height="96" rx="21" fill={block.color} />}
+        {shapeIndex === 4 && <path d="M80 31 149 101 80 171 11 101Z" fill={block.color} />}
+        {shapeIndex === 5 && <path d="M80 28 151 165 9 165Z" fill={block.color} />}
+        {shapeIndex === 6 && <path d="M80 31 145 67 145 136 80 171 15 136 15 67Z" fill={block.color} />}
+        {shapeIndex === 7 && <circle cx="80" cy="101" r="59" fill={block.color} />}
+        {shapeIndex === 8 && <rect x="21" y="42" width="118" height="118" rx="4" fill={block.color} transform="rotate(7 80 101)" />}
+        <image
+          href={`${EDITORIAL_ART_BASE}${block.editorialArtwork}`}
+          x={artLayout.x}
+          y={artLayout.y}
+          width={artLayout.width}
+          height={artLayout.height}
+          preserveAspectRatio="xMidYMid meet"
+          style={{ filter: 'contrast(180%)', mixBlendMode: 'multiply' }}
+        />
+        <text x="10" y="20" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="14" fontWeight="900">{block.label}</text>
+        <text x="151" y="12" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="7" fontWeight="900" transform="rotate(90 151 12)">{block.family}</text>
+        <text x="10" y="188" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="7" fontWeight="900" transform="rotate(-90 10 188)">模块 {block.number}</text>
+        <text x="150" y="190" textAnchor="end" fill={ink} fontFamily="Impact, Arial Black, sans-serif" fontSize="10" fontWeight="900">{technicalLabel}</text>
+      </svg>
+    </div>;
+  }
+  return <div
+    role="img"
+    aria-label={`${block.label}功能模块图示`}
+    className={`relative grid place-items-center overflow-hidden ${className}`}
+    style={{ background: block.color }}
+  >
+    <svg viewBox="0 0 160 110" aria-hidden="true" className="h-[82%] w-[88%] select-none">
+      <rect x="3" y="3" width="154" height="104" rx="17" fill={paper} stroke={ink} strokeWidth="3" />
+      {diagram}
+    </svg>
   </div>;
 }
 
-function RunStatus({ trace, visibleSteps }: { trace: SkillRunTrace; visibleSteps: number }) {
-  return <div className="space-y-2">{trace.steps.map((step, index) => { const visible = index < visibleSteps; const active = index === visibleSteps; return <div key={step.node_id} className={`relative grid grid-cols-[34px_1fr_auto] items-center gap-2 border-2 px-2.5 py-2.5 transition-all duration-300 ${visible ? 'border-black bg-white' : active ? 'translate-x-1 border-black bg-[#fff0b5]' : 'border-black/15 bg-white/40 text-black/30'}`}>
-    {index < trace.steps.length - 1 && <span className="absolute left-[25px] top-[42px] h-4 border-l-2 border-dashed border-black/25" />}<span className={`grid h-8 w-8 place-items-center rounded-full border-2 ${visible ? 'border-black bg-[#7cff6b]' : active ? 'border-black bg-[#ffd34e]' : 'border-black/15 bg-white'}`}>{visible ? <Check className="h-4 w-4" strokeWidth={3} /> : active ? <Footprints className="h-4 w-4 animate-pulse" /> : <span className="font-pixel text-[6px]">{String(index + 1).padStart(2, '0')}</span>}</span><span><b className="block text-[10px]">{step.label}</b><small className="mt-0.5 block text-[7px] leading-relaxed text-black/45">{visible ? step.evidence : active ? 'Frost 正在走到这里…' : '等待上一步'}</small></span><span className="font-pixel text-[5px]">{visible ? 'DONE' : active ? 'NOW' : 'NEXT'}</span>
-  </div>; })}</div>;
+function MiniAbilityCard({
+  block, label, placed = false, visualStyle = 'signal', onOpen, onRemove, onDragStart,
+}: {
+  block: AbilityBlock; label?: string; placed?: boolean; visualStyle?: CardVisualStyle; onOpen: () => void;
+  onRemove?: () => void; onDragStart: (event: ReactDragEvent<HTMLElement>) => void;
+}) {
+  return <article
+    draggable
+    tabIndex={0}
+    role="button"
+    aria-label={`查看${label || block.label}卡牌`}
+    onDragStart={onDragStart}
+    onClick={onOpen}
+    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}
+    className={`${placed ? 'w-full' : 'w-[126px] shrink-0'} group relative cursor-grab overflow-hidden ${visualStyle === 'editorial' ? 'rounded-[3px] bg-white' : 'rounded-[14px] bg-[#f8f1e3]'} border-2 border-[#26231f] text-left active:cursor-grabbing`}
+  >
+    <div className={`relative overflow-hidden ${visualStyle === 'editorial' ? '' : 'border-b-2 border-[#26231f] bg-[#f4ecdc]'}`}>
+      <AbilityArtwork block={block} visualStyle={visualStyle} className={`${placed ? visualStyle === 'editorial' ? 'aspect-[3/4]' : 'aspect-square' : visualStyle === 'editorial' ? 'h-[166px]' : 'h-[92px]'} w-full`} />
+      {visualStyle !== 'editorial' && <span className="absolute left-1.5 top-1.5 rounded-full border border-[#26231f] bg-[#f8f1e3]/95 px-1.5 py-0.5 font-pixel text-[5px]">{block.number}</span>}
+      {placed && <GripVertical className="absolute bottom-1.5 right-1.5 h-3.5 w-3.5 rounded-full border border-[#26231f] bg-[#f8f1e3] p-0.5" />}
+    </div>
+    {visualStyle !== 'editorial' && <div className={`${placed ? 'p-1.5' : 'p-2'} min-w-0`} style={{ background: block.color }}>
+      <span className="inline-flex rounded-full border border-[#26231f] bg-[#f8f1e3]/90 px-1.5 py-0.5 text-[6px] font-bold">{block.family}</span>
+      <b className={`${placed ? 'text-[8px]' : 'text-[10px]'} mt-1 block truncate`}>{label || block.label}</b>
+      <small className={`${placed ? 'text-[6px]' : 'text-[7px]'} mt-0.5 block truncate text-black/55`}>{block.detail}</small>
+    </div>}
+    {onRemove && <button
+      type="button"
+      aria-label={`移除${label || block.label}`}
+      onClick={(event) => { event.stopPropagation(); onRemove(); }}
+      className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full border border-[#26231f] bg-[#f8f1e3]"
+    ><X className="h-3 w-3" strokeWidth={2.5} /></button>}
+  </article>;
 }
 
-export default function SkillCanvasTab({ skillId, onSaved }: Props) {
+function AbilityCardDialog({ block, visualStyle = 'signal', onClose, onAdd }: { block: AbilityBlock; visualStyle?: CardVisualStyle; onClose: () => void; onAdd: () => void }) {
+  const [flipped, setFlipped] = useState(false);
+  const definition = CAPABILITY_DEFINITIONS[block.capability];
+  const runtimeSignals = [
+    { key: '响应', value: block.stats.instant >= 4 ? '实时' : '队列', score: block.stats.instant },
+    { key: '隐私', value: block.stats.privacy >= 4 ? '本机' : '受控授权', score: block.stats.privacy },
+    { key: '证据', value: block.stats.evidence >= 4 ? '可追溯' : '基础', score: block.stats.evidence },
+    { key: '风险', value: block.stats.risk <= 2 ? '低' : '需防护', score: block.stats.risk },
+  ];
+  return <div className="absolute inset-0 z-[70] overflow-y-auto bg-black/60 p-4" role="dialog" aria-modal="true" aria-label={`${block.label}卡牌详情`}>
+    <div className="mx-auto mt-2 flex h-[560px] w-full max-w-[342px] flex-col overflow-hidden rounded-[28px] border-[3px] border-[#26231f] bg-[#f8f1e3]">
+      <div className="flex shrink-0 items-center justify-between border-b-2 border-[#26231f] px-3 py-2" style={{ background: block.color }}>
+        <span className="font-pixel text-[7px]">模块 {block.number}</span>
+        <span className="rounded-full border-2 border-[#26231f] bg-[#f8f1e3] px-3 py-1 text-[8px] font-black">{block.family}</span>
+        <button type="button" onClick={onClose} aria-label="关闭卡牌" className="grid h-7 w-7 place-items-center rounded-full border-2 border-[#26231f] bg-[#f8f1e3]"><X className="h-4 w-4" /></button>
+      </div>
+
+      {!flipped ? <div className="flex min-h-0 flex-1 flex-col p-3">
+        <AbilityArtwork block={block} visualStyle={visualStyle} className={`${visualStyle === 'editorial' ? 'h-[350px] rounded-[3px]' : 'h-[246px] rounded-[20px]'} w-full shrink-0 border-2 border-[#26231f]`} />
+        {visualStyle !== 'editorial' && <section className="mt-3 rounded-[18px] border-2 border-[#26231f] px-3 py-2.5" style={{ background: block.color }}>
+          <div className="flex items-center justify-between gap-2">
+            <small className="truncate font-pixel text-[5px] text-black/55">{block.capability}</small>
+            <span className="shrink-0 rounded-full border border-[#26231f] bg-[#f8f1e3]/85 px-2 py-0.5 font-pixel text-[4px]">已启用模块</span>
+          </div>
+          <h2 className="mt-1 text-[21px] font-black leading-none">{block.label}</h2>
+          <p className="mt-1.5 text-[8px] font-black uppercase tracking-wide text-black/60">{block.detail}</p>
+        </section>}
+        <p className="mt-3 border-l-[3px] border-[#26231f] pl-3 text-[9px] leading-relaxed text-black/60">{block.blurb}</p>
+        <div className="mt-auto grid grid-cols-2 gap-2 pt-3">
+            <button type="button" onClick={() => setFlipped(true)} className="flex items-center justify-center gap-1.5 rounded-full border-2 border-[#26231f] bg-[#f8f1e3] px-3 py-2.5 text-[9px] font-black"><RotateCcw className="h-3.5 w-3.5" />翻到背面</button>
+            <button type="button" onClick={onAdd} className="flex items-center justify-center gap-1.5 rounded-full border-2 border-[#26231f] bg-[#26231f] px-3 py-2.5 text-[9px] font-black text-[#f8f1e3]"><Plus className="h-3.5 w-3.5" />放入组合</button>
+        </div>
+      </div> : <div className="flex min-h-0 flex-1 flex-col p-4">
+        <section className="rounded-[18px] border-2 border-[#26231f] bg-[#191a17] p-3 text-[#f8f1e3]">
+          <div className="flex items-center justify-between gap-2"><small className="font-pixel text-[5px] text-[#7CFF6B]">能力契约 · CONTRACT</small><span className="rounded-full border border-[#7CFF6B] px-2 py-0.5 font-pixel text-[4px] text-[#7CFF6B]">就绪</span></div>
+          <h2 className="mt-1.5 text-[19px] font-black">{block.label}</h2>
+          <code className="mt-1 block truncate font-mono text-[8px] text-white/55">capability://{block.capability}</code>
+        </section>
+
+        <section className="mt-3 overflow-hidden rounded-[18px] border-2 border-[#26231f] bg-white/55">
+          <div className="flex items-center justify-between border-b border-[#26231f] bg-[#dfd8ca] px-3 py-2"><b className="font-pixel text-[5px]">运行时接口 · RUNTIME</b><span className="font-mono text-[7px] text-black/45">v1</span></div>
+          <dl className="grid grid-cols-[72px_1fr] gap-x-2 gap-y-1.5 p-3 font-mono text-[8px]">
+            <dt className="text-black/40">阶段</dt><dd>{STAGE_LABEL[definition.stage]} / {definition.stage}</dd>
+            <dt className="text-black/40">执行方</dt><dd className="truncate">{block.provider}</dd>
+            <dt className="text-black/40">输入</dt><dd className="truncate text-[#36697f]">{block.input}</dd>
+            <dt className="text-black/40">输出事件</dt><dd className="truncate text-[#7b5630]">{block.output}</dd>
+          </dl>
+        </section>
+
+        <section className="mt-3 grid grid-cols-2 gap-2">
+          {runtimeSignals.map((signal) => <div key={signal.key} className="rounded-[12px] border-2 border-[#26231f] bg-white/55 px-2.5 py-2">
+            <span className="flex items-center justify-between font-pixel text-[4px] text-black/40"><span>{signal.key}</span><span>{signal.score}/5</span></span>
+            <b className="mt-1 block font-mono text-[8px]">{signal.value}</b>
+          </div>)}
+        </section>
+
+        <section className="mt-3 rounded-[14px] border-2 border-[#26231f] bg-white/55 px-3 py-2">
+          <small className="font-pixel text-[4px] text-black/40">权限范围 · PERMISSIONS</small>
+          <code className="mt-1 block truncate font-mono text-[7px]">{definition.permissions.length ? `[${definition.permissions.map((permission) => `\"${permission}\"`).join(', ')}]` : '[] // 无额外权限'}</code>
+        </section>
+        <button type="button" onClick={() => setFlipped(false)} className="mt-auto flex w-full items-center justify-center gap-2 rounded-full border-2 border-[#26231f] bg-[#26231f] px-3 py-3 text-[9px] font-black text-[#f8f1e3]"><RotateCcw className="h-4 w-4" />翻回正面</button>
+      </div>}
+    </div>
+  </div>;
+}
+
+export default function SkillCanvasTab({ skillId, onSaved, visualStyle = 'signal' }: Props) {
   const sequenceRef = useRef(100);
+  const deckScrollRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<Stage>('sketch');
-  const [draft, setDraft] = useState<SkillCanvasDraft>(() => getCanvasSkill(skillId || '')?.draft || templateDraft('morning-run'));
+  const [draft, setDraft] = useState<SkillCanvasDraft>(() => getCanvasSkill(skillId || '')?.draft || emptyDraft());
+  const [activeFamily, setActiveFamily] = useState<'全部' | CardFamily>('全部');
+  const [selectedCapability, setSelectedCapability] = useState<SkillBlockCapability | null>(null);
+  const [dragSource, setDragSource] = useState<DragSource | null>(null);
   const [compiled, setCompiled] = useState<CompiledSkillGraph | null>(null);
   const [trace, setTrace] = useState<SkillRunTrace | null>(null);
   const [visibleSteps, setVisibleSteps] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [deckEdges, setDeckEdges] = useState({ left: true, right: false });
+  const [comboExpanded, setComboExpanded] = useState(false);
+
+  const updateDeckEdges = () => {
+    const deck = deckScrollRef.current;
+    if (!deck) return;
+    setDeckEdges({
+      left: deck.scrollLeft <= 2,
+      right: deck.scrollLeft + deck.clientWidth >= deck.scrollWidth - 2,
+    });
+  };
+  const scrollDeck = (direction: -1 | 1) => {
+    const deck = deckScrollRef.current;
+    if (!deck) return;
+    deck.scrollBy({ left: direction * Math.max(220, deck.clientWidth * 0.72), behavior: 'smooth' });
+  };
 
   useEffect(() => {
     if (!skillId) return;
@@ -143,78 +363,212 @@ export default function SkillCanvasTab({ skillId, onSaved }: Props) {
     return () => window.clearTimeout(timer);
   }, [stage, trace, visibleSteps]);
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(updateDeckEdges);
+    window.addEventListener('resize', updateDeckEdges);
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('resize', updateDeckEdges); };
+  }, [activeFamily]);
+
   const compileResult = useMemo(() => compileSkillDraft(draft), [draft]);
+  const filteredBlocks = activeFamily === '全部' ? BLOCKS : BLOCKS.filter((block) => block.family === activeFamily);
+  const selectedBlock = selectedCapability ? blockDefinition(selectedCapability) : null;
+  const recommendedAvatar = useMemo(() => recommendSkillAvatar(draft.nodes), [draft.nodes]);
+  const selectedAvatar = getSkillAvatar(draft.avatar_id) || recommendedAvatar;
+  const compactRows = Math.max(1, Math.ceil((draft.nodes.length + 1) / 4));
+  const expandedRows = Math.max(2, Math.ceil(draft.nodes.length / 4) + 1);
+  const slotCount = (comboExpanded ? expandedRows : compactRows) * 4;
+  const goalReady = !!draft.title.trim() && !!draft.prompt.trim();
+  const buildChecks = [
+    { label: '目标已定义', ok: goalReady },
+    { label: '包含启动条件', ok: draft.nodes.some((node) => CAPABILITY_DEFINITIONS[node.capability].stage === 'trigger') },
+    { label: '包含动作或状态输出', ok: draft.nodes.some((node) => ['act', 'remember'].includes(CAPABILITY_DEFINITIONS[node.capability].stage)) },
+  ];
   const updateDraft = (next: SkillCanvasDraft) => {
-    setDraft({ ...next, updated_at: new Date().toISOString() });
-    setSaved(false); setCompiled(null); setTrace(null);
+    setDraft({ ...next, updated_at: new Date().toISOString() }); setSaved(false); setCompiled(null); setTrace(null);
   };
-  const chooseTemplate = (template: TemplateId) => {
-    updateDraft(templateDraft(template, draft.id));
-  };
-  const addBlock = (capability: SkillBlockCapability, targetIndex = draft.nodes.length) => {
+  const addBlock = (capability: SkillBlockCapability, slotIndex = draft.nodes.length) => {
     sequenceRef.current += 1;
-    const nodes = [...draft.nodes];
-    nodes.splice(Math.min(targetIndex, nodes.length), 0, makeNode(capability, draft.nodes.length + sequenceRef.current));
-    updateDraft({
-      ...draft,
-      nodes,
-    });
+    const nextNodes = [...draft.nodes];
+    nextNodes.splice(Math.min(slotIndex, nextNodes.length), 0, makeNode(capability, draft.nodes.length + sequenceRef.current));
+    updateDraft({ ...draft, nodes: nextNodes });
   };
-  const removeNode = (id: string) => updateDraft({ ...draft, nodes: draft.nodes.filter((node) => node.id !== id) });
-  const reorderNode = (id: string, targetIndex: number) => {
-    const fromIndex = draft.nodes.findIndex((node) => node.id === id);
-    if (fromIndex < 0 || fromIndex === targetIndex) return;
-    const nodes = [...draft.nodes];
-    const [node] = nodes.splice(fromIndex, 1);
-    nodes.splice(Math.min(targetIndex, nodes.length), 0, node);
-    updateDraft({ ...draft, nodes });
+  const removeNode = (id: string) => updateDraft({ ...draft, nodes: draft.nodes.filter((node) => node.id !== id), edges: draft.edges.filter((edge) => edge.from !== id && edge.to !== id) });
+  const moveNodeToSlot = (nodeId: string, slotIndex: number) => {
+    const sourceIndex = draft.nodes.findIndex((node) => node.id === nodeId);
+    if (sourceIndex < 0) return;
+    const nextNodes = [...draft.nodes];
+    const [node] = nextNodes.splice(sourceIndex, 1);
+    nextNodes.splice(Math.min(slotIndex, nextNodes.length), 0, node);
+    updateDraft({ ...draft, nodes: nextNodes });
+  };
+  const beginDrag = (event: ReactDragEvent<HTMLElement>, source: DragSource) => {
+    setDragSource(source);
+    event.dataTransfer.effectAllowed = source.kind === 'library' ? 'copy' : 'move';
+    event.dataTransfer.setData('text/plain', source.kind === 'library' ? source.capability : source.nodeId);
+  };
+  const dropIntoSlot = (event: ReactDragEvent<HTMLDivElement>, slotIndex: number) => {
+    event.preventDefault();
+    if (!dragSource) return;
+    if (dragSource.kind === 'library') addBlock(dragSource.capability, slotIndex);
+    else moveNodeToSlot(dragSource.nodeId, slotIndex);
+    setDragSource(null);
   };
   const showStructure = () => {
-    setDraft(compileResult.structured); setStage('structure');
+    setDraft({
+      ...compileResult.structured,
+      avatar_id: compileResult.structured.avatar_id || recommendedAvatar.id,
+      avatar_name: compileResult.structured.avatar_name ?? selectedAvatar.name,
+      avatar_role: compileResult.structured.avatar_role ?? selectedAvatar.role,
+    });
+    setStage('structure');
   };
   const startPreview = () => {
     const result = compileSkillDraft(draft); setDraft(result.structured);
     if (!result.ok || !result.graph) return;
     const nextTrace = previewSkillGraph(result.graph);
     setCompiled(result.graph); setTrace(nextTrace); setVisibleSteps(0); setSaved(false); setStage('run');
+    setCompiled(result.graph); setTrace(nextTrace); setVisibleSteps(0); setSaved(false); setStage('run');
   };
   const save = () => {
     if (!compiled || !trace || visibleSteps < trace.steps.length) return;
-    saveCanvasSkill(compiled, draft, trace); setSaved(true); onSaved?.();
+    const avatarId = draft.avatar_id || selectedAvatar.id;
+    const avatarName = draft.avatar_name ?? selectedAvatar.name;
+    const avatarRole = draft.avatar_role ?? selectedAvatar.role;
+    const draftWithAvatar = { ...draft, avatar_id: avatarId, avatar_name: avatarName, avatar_role: avatarRole };
+    const graphWithAvatar = { ...compiled, avatar_id: avatarId, avatar_name: avatarName, avatar_role: avatarRole };
+    saveCanvasSkill(graphWithAvatar, draftWithAvatar, trace);
+    setDraft(draftWithAvatar); setCompiled(graphWithAvatar); setSaved(true); onSaved?.();
   };
 
-  return <div className="relative flex h-full flex-col overflow-hidden bg-[#e8e5dc]">
-    <StageRail stage={stage} hasTrace={!!trace} onChange={setStage} />
+  return <div className="relative flex h-full flex-col overflow-hidden bg-[#efece4]">
     <div className="min-h-0 flex-1 overflow-y-auto">
-      {stage === 'sketch' && <SkillDeckBuilder
-        draft={draft}
-        cards={BLOCKS}
-        templates={TEMPLATES}
-        onChange={updateDraft}
-        onTemplate={(id) => chooseTemplate(id as TemplateId)}
-        onAdd={addBlock}
-        onRemove={removeNode}
-        onReorder={reorderNode}
-      />}
-      {stage === 'structure' && <section className="mx-auto max-w-[880px] p-3 md:p-5">
-        <header className="mb-3 grid grid-cols-[1fr_auto] gap-3 border-[3px] border-black bg-[#7cff6b] p-4"><span><small className="font-pixel text-[6px]">FROST STRUCTURED YOUR SKETCH</small><h2 className="mt-1.5 text-[23px] font-black">现在，它有顺序了</h2><p className="mt-1 text-[8px] leading-relaxed text-black/55">你提供想法；Frost 补上依赖、权限和停止规则。</p></span><span className="grid h-12 w-12 place-items-center rounded-full border-2 border-black bg-white"><WandSparkles className="h-5 w-5" /></span></header>
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1.35fr)_minmax(230px,.65fr)]"><StructuredFlow draft={compileResult.structured} /><aside className="space-y-3">
-          <div className="border-2 border-black bg-[#fffaf0] p-3"><div className="flex items-start justify-between gap-2"><span><b className="block font-pixel text-[7px]">PERMISSION ENVELOPE</b><small className="mt-1 block text-[7px] leading-relaxed text-black/45">运行到对应步骤时才请求</small></span><ShieldCheck className="h-5 w-5" /></div><div className="mt-3 flex flex-wrap gap-1.5">{compileResult.graph?.permissions.map((permission) => <span key={permission} className="rounded-full border border-black bg-white px-2 py-1 text-[7px] font-bold">{PERMISSION_LABEL[permission] || permission}</span>) || <span className="text-[7px] text-black/40">修复问题后生成权限清单</span>}</div></div>
-          <div className="border-2 border-black bg-white p-3"><small className="font-pixel text-[6px] text-black/40">PREVIEW BOUNDARY</small><b className="mt-1.5 block text-[11px]">试跑不会偷读真实数据</b><p className="mt-1.5 text-[8px] leading-relaxed text-black/45">只检查任务图；不读取 GPS、HRV、相机或模型结果。</p></div>
-          {compileResult.issues.length === 0 && <div className="grid grid-cols-[32px_1fr] gap-2 border-2 border-black bg-[#dff5e9] p-3"><span className="grid h-8 w-8 place-items-center rounded-full border-2 border-black bg-[#7cff6b]"><Check className="h-4 w-4" /></span><span><b className="block text-[10px]">可以交给 Taskmaster</b><small className="mt-1 block text-[7px] text-black/45">触发、结果和停止路径已齐全</small></span></div>}
-        </aside></div>
-        {compileResult.issues.length > 0 && <div role="alert" className="mt-3 border-2 border-[#b3261e] bg-[#fff0ed] p-3"><b className="text-[10px] text-[#8b1c16]">还差一点</b>{compileResult.issues.map((issue) => <p key={`${issue.code}-${issue.node_id || ''}`} className="mt-1 text-[8px] text-[#8b1c16]">· {issue.message}</p>)}</div>}
+      {stage === 'sketch' && <>
+        <section className="border-b-2 border-black bg-[#fff9e8] px-4 py-4">
+          <div className="flex items-end justify-between gap-3"><span><b className="block font-pixel text-[7px]">01 · 定义目标</b><small className="mt-1 block text-[7px] text-black/45">先定义结果、场景与安全边界</small></span><span className={`rounded-full border-2 border-black px-2 py-1 font-pixel text-[5px] ${goalReady ? 'bg-[#a8c99c]' : 'bg-white'}`}>{goalReady ? '已就绪' : '必填'}</span></div>
+          <label className="mt-3 block text-[8px] font-black" htmlFor="skill-goal-title">技能名称</label>
+          <input id="skill-goal-title" aria-label="Skill 名称" value={draft.title} maxLength={28} onChange={(event) => updateDraft({ ...draft, title: event.target.value })} className="mt-1 w-full rounded-[12px] border-2 border-black bg-white px-3 py-2.5 text-[16px] font-black outline-none placeholder:text-black/25" placeholder="例如：10 分钟城市观察跑" />
+          <label className="mt-3 block text-[8px] font-black" htmlFor="skill-goal-description">目标定义</label>
+          <textarea id="skill-goal-description" aria-label="目标定义" value={draft.prompt} maxLength={160} onChange={(event) => updateDraft({ ...draft, prompt: event.target.value })} className="mt-1 min-h-[74px] w-full resize-none rounded-[12px] border-2 border-black bg-white px-3 py-2.5 text-[10px] leading-relaxed outline-none placeholder:text-black/30" placeholder="写清期望结果、使用场景和必须遵守的边界。例：读取今天的恢复状态，完成 10 分钟城市跑；出现疼痛立即停止，并保存带 Evidence 的总结。" />
+        </section>
+
+        <section className="border-b-2 border-black bg-[#e8e2d5] px-3 py-3">
+          <div className="flex items-end justify-between gap-3">
+            <span><b className="block font-pixel text-[7px]">02 · 能力模块</b><small className="mt-1 block text-[7px] text-black/45">按工程能力分类筛选；拖动模块进入组合区</small></span>
+            <span className="rounded-full border-2 border-black bg-[#f8f1e3] px-2 py-1 font-pixel text-[5px]">{BLOCKS.length} 个模块</span>
+          </div>
+          <div className="-mx-3 mt-2 flex gap-1.5 overflow-x-auto px-3 pb-1">{FAMILY_FILTERS.map((family) => <button key={family} type="button" onClick={() => setActiveFamily(family)} className={`shrink-0 rounded-full border-2 border-black px-3 py-1.5 text-[8px] font-black ${activeFamily === family ? 'bg-[#26231f] text-[#f8f1e3]' : 'bg-[#f8f1e3]'}`}>{family}</button>)}</div>
+          <div className="relative -mx-3 mt-2">
+            <button type="button" aria-label="向左滑动能力卡牌" disabled={deckEdges.left} onClick={() => scrollDeck(-1)} className="absolute left-1 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border-2 border-black bg-[#f8f1e3] disabled:opacity-20"><ChevronLeft className="h-5 w-5" strokeWidth={3} /></button>
+            <div ref={deckScrollRef} onScroll={updateDeckEdges} className="flex gap-2.5 overflow-x-auto px-11 pb-2">{filteredBlocks.map((block) => <MiniAbilityCard
+              key={block.capability}
+              block={block}
+              visualStyle={visualStyle}
+              onOpen={() => setSelectedCapability(block.capability)}
+              onDragStart={(event) => beginDrag(event, { kind: 'library', capability: block.capability })}
+            />)}</div>
+            <button type="button" aria-label="向右滑动能力卡牌" disabled={deckEdges.right} onClick={() => scrollDeck(1)} className="absolute right-1 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border-2 border-black bg-[#f8f1e3] disabled:opacity-20"><ChevronRight className="h-5 w-5" strokeWidth={3} /></button>
+          </div>
+        </section>
+
+        <section className="px-3 pb-4 pt-3">
+          <div className="mb-2 flex items-end justify-between gap-3">
+            <span><b className="block font-pixel text-[7px]">03 · 技能组合</b><small className="mt-1 block text-[7px] text-black/45">从空白技能图开始；拖入、移除或调整模块顺序</small></span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <span className="rounded-full border border-black bg-white px-2 py-1 font-pixel text-[5px]">{draft.nodes.length} 个模块</span>
+              <button type="button" aria-expanded={comboExpanded} onClick={() => setComboExpanded((value) => !value)} className="flex items-center gap-1 rounded-full border-2 border-black bg-[#ffd34e] px-2 py-1 text-[6px] font-black">{comboExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}{comboExpanded ? '收起空行' : '展开画布'}</button>
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 rounded-[18px] border-2 border-black bg-[#d6d0c3] p-2" style={{ backgroundImage: 'radial-gradient(circle, rgba(0,0,0,.11) 1px, transparent 1px)', backgroundSize: '15px 15px' }}>
+            {Array.from({ length: slotCount }, (_, index) => {
+              const node = draft.nodes[index];
+              return <div
+                key={node?.id || `empty-${index}`}
+                role={node ? undefined : 'button'}
+                aria-label={node ? undefined : `空卡槽 ${index + 1}`}
+                onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = dragSource?.kind === 'library' ? 'copy' : 'move'; }}
+                onDrop={(event) => dropIntoSlot(event, index)}
+                className={`min-h-[128px] rounded-[14px] ${node ? '' : 'grid place-items-center border-2 border-dashed border-black/45 bg-[#f8f1e3]/45'}`}
+              >
+                {node ? <MiniAbilityCard
+                  block={blockDefinition(node.capability)}
+                  label={node.label}
+                  placed
+                  visualStyle={visualStyle}
+                  onOpen={() => setSelectedCapability(node.capability)}
+                  onRemove={() => removeNode(node.id)}
+                  onDragStart={(event) => beginDrag(event, { kind: 'slot', nodeId: node.id })}
+                /> : <span className="pointer-events-none text-center text-black/35"><Plus className="mx-auto h-5 w-5" /><small className="mt-1 block font-pixel text-[5px] leading-tight">放入<br />模块</small></span>}
+              </div>;
+            })}
+          </div>
+          <div className="mt-3 rounded-[14px] border-2 border-black bg-[#f8f1e3] p-2.5">
+            <div className="flex items-center justify-between"><span><b className="block text-[9px]">技能图构建检查</b><small className="mt-0.5 block text-[7px] text-black/45">结构化前先满足最小可执行合同</small></span><Sparkles className="h-4 w-4" /></div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">{buildChecks.map((check) => <span key={check.label} className={`flex min-h-[34px] items-center justify-center rounded-[9px] border border-black px-1 text-center text-[6px] font-black ${check.ok ? 'bg-[#a8c99c]' : 'bg-white text-black/35'}`}>{check.ok ? '✓ ' : '○ '}{check.label}</span>)}</div>
+          </div>
+        </section>
+
+        <section className="border-t-2 border-black bg-[#fff9e8] px-3 py-3">
+          <div className="flex items-end justify-between gap-3">
+            <span><b className="block font-pixel text-[7px]">04 · 选择技能形象</b><small className="mt-1 block text-[7px] text-black/45">动物头像属于完整 Skill，不再占用能力模块</small></span>
+            <span className="rounded-full border-2 border-black bg-[#ffd34e] px-2 py-1 font-pixel text-[5px]">最后一步</span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-[72px_1fr] items-center gap-3 rounded-[16px] border-2 border-black bg-white p-2.5">
+            <span className="grid h-[68px] w-[68px] place-items-center overflow-hidden rounded-full border-2 border-black" style={{ background: selectedAvatar.accent }}>
+              <img src={selectedAvatar.assetUrl} alt="" className="h-[92%] w-[92%] object-contain" draggable={false} />
+            </span>
+            <div className="min-w-0">
+              <label className="block font-pixel text-[4px] text-black/40" htmlFor="skill-avatar-title">技能名称</label>
+              <input id="skill-avatar-title" aria-label="编辑技能名称" value={draft.title} maxLength={28} onChange={(event) => updateDraft({ ...draft, title: event.target.value })} className="mt-0.5 w-full border-b-2 border-black bg-transparent px-0 py-1 text-[13px] font-black outline-none placeholder:text-black/25" placeholder="未命名技能" />
+              <div className="mt-1.5 grid grid-cols-2 gap-2">
+                <label className="min-w-0 text-[5px] font-bold text-black/40" htmlFor="skill-avatar-name">形象昵称<input id="skill-avatar-name" aria-label="编辑技能形象昵称" value={draft.avatar_name ?? selectedAvatar.name} maxLength={18} onChange={(event) => updateDraft({ ...draft, avatar_id: selectedAvatar.id, avatar_name: event.target.value })} className="mt-0.5 w-full border-b border-black bg-transparent py-0.5 text-[8px] font-black text-black outline-none" /></label>
+                <label className="min-w-0 text-[5px] font-bold text-black/40" htmlFor="skill-avatar-role">形象介绍<input id="skill-avatar-role" aria-label="编辑技能形象介绍" value={draft.avatar_role ?? selectedAvatar.role} maxLength={32} onChange={(event) => updateDraft({ ...draft, avatar_id: selectedAvatar.id, avatar_role: event.target.value })} className="mt-0.5 w-full border-b border-black bg-transparent py-0.5 text-[7px] text-black outline-none" /></label>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            {SKILL_AVATARS.map((avatar) => {
+              const active = selectedAvatar.id === avatar.id;
+              const recommended = recommendedAvatar.id === avatar.id;
+              return <button key={avatar.id} type="button" aria-pressed={active} aria-label={`选择${avatar.name}作为技能形象`} onClick={() => updateDraft({ ...draft, avatar_id: avatar.id, avatar_name: avatar.name, avatar_role: avatar.role })} className={`relative min-w-0 rounded-[12px] border-2 p-1.5 text-center ${active ? 'border-black bg-[#ffd34e] shadow-[2px_2px_0_#000]' : 'border-black/25 bg-white'}`}>
+                {recommended && <span className="absolute right-1 top-1 z-10 rounded-full border border-black bg-[#00ff88] px-1 py-0.5 font-pixel text-[4px]">推荐</span>}
+                <span className="mx-auto grid h-12 w-12 max-w-full place-items-center overflow-hidden rounded-full" style={{ background: `${avatar.accent}66` }}><img src={avatar.assetUrl} alt="" className="h-[94%] w-[94%] object-contain" loading="lazy" draggable={false} /></span>
+                <small className="mt-1 block truncate text-[6px] font-black">{avatar.name}</small>
+              </button>;
+            })}
+          </div>
+        </section>
+      </>}
+
+      {stage === 'structure' && <section className="px-3 py-3">
+        <div className="overflow-hidden border-[3px] border-black bg-white">
+          <div className="grid grid-cols-[1fr_auto] gap-3 border-b-[3px] border-black bg-[#00ff88] p-3"><span><small className="font-pixel text-[6px]">FROST 已完成结构化</small><h2 className="mt-1 text-[20px] font-black">现在，顺序清楚了</h2><p className="mt-1 text-[8px] leading-relaxed text-black/55">{draft.avatar_name ?? selectedAvatar.name} 已成为这个 Skill 的形象；能力积木仍只表达功能。</p></span><span className="grid h-12 w-12 place-items-center overflow-hidden rounded-full border-2 border-black bg-white"><img src={selectedAvatar.assetUrl} alt={`${draft.avatar_name ?? selectedAvatar.name}技能形象`} className="h-[94%] w-[94%] object-contain" /></span></div>
+          <div className="bg-[#161a19] p-3">{compileResult.structured.nodes.map((node, index) => { const block = blockDefinition(node.capability); const Icon = block.icon; return <div key={node.id} className="relative mb-3 grid grid-cols-[36px_1fr_auto] items-center gap-2.5 border-2 border-black bg-white p-2.5 last:mb-0">{index < compileResult.structured.nodes.length - 1 && <span className="absolute left-[26px] top-[54px] h-[18px] border-l-2 border-dashed border-[#00ff88]" />}<span className="grid h-9 w-9 place-items-center rounded-full border-2 border-black" style={{ background: block.color }}><Icon className="h-4 w-4" /></span><span><small className="font-pixel text-[5px] text-black/40">{String(index + 1).padStart(2, '0')} · {block.family}</small><b className="mt-1 block text-[10px]">{node.label}</b><small className="mt-0.5 block text-[7px] text-black/45">{node.detail}</small></span><ArrowRight className="h-4 w-4 text-black/25" /></div>; })}</div>
+        </div>
+        {compileResult.issues.length > 0 && <div role="alert" className="mt-3 border-2 border-[#b3261e] bg-[#fff0ed] p-2.5"><b className="text-[10px] text-[#8b1c16]">还差一点</b>{compileResult.issues.map((issue) => <p key={`${issue.code}-${issue.node_id || ''}`} className="mt-1 text-[8px] text-[#8b1c16]">· {issue.message}</p>)}</div>}
+        <div className="mt-3 border-2 border-black bg-[#fff9e8] p-2.5"><div className="flex items-center justify-between"><span><b className="block font-pixel text-[7px]">权限边界</b><small className="mt-1 block text-[7px] text-black/45">运行到对应步骤时才请求</small></span><ShieldCheck className="h-5 w-5" /></div><div className="mt-2 flex flex-wrap gap-1.5">{compileResult.graph?.permissions.map((permission) => <span key={permission} className="border border-black bg-white px-2 py-1 text-[7px] font-bold">{PERMISSION_LABEL[permission] || permission}</span>) || <span className="text-[7px] text-black/40">修复上方问题后生成权限清单</span>}</div></div>
+        <p className="mt-3 px-1 text-[8px] leading-relaxed text-black/45">本次“试运行”只检查任务图，不会读取真实 GPS、HRV、相机或模型数据。</p>
       </section>}
-      {stage === 'run' && trace && <section className="mx-auto max-w-[760px] p-3 md:p-5">
-        <header className="mb-3 border-[3px] border-black bg-[#fff0b5] p-4 shadow-[5px_5px_0_#000]"><div className="flex items-start justify-between gap-3"><span><small className="font-pixel text-[6px]">SKILL TASKMASTER · PREVIEW RUN</small><h2 className="mt-1.5 text-[23px] font-black">{visibleSteps >= trace.steps.length ? '这条任务能跑通' : '伙伴正在走一遍'}</h2><p className="mt-1 text-[8px] leading-relaxed text-black/55">{trace.note}</p></span><span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full border-2 border-black ${visibleSteps >= trace.steps.length ? 'bg-[#7cff6b]' : 'bg-white'}`}>{visibleSteps >= trace.steps.length ? <Check className="h-6 w-6" strokeWidth={3} /> : <Footprints className="h-6 w-6 animate-pulse" />}</span></div></header>
+
+      {stage === 'run' && trace && <section className="px-3 py-3">
+        <div className="mb-3 border-[3px] border-black bg-[#fff0b5] p-3"><div className="flex items-start justify-between gap-3"><span><small className="font-pixel text-[6px]">SKILL TASKMASTER · 试运行</small><h2 className="mt-1 text-[20px] font-black">{visibleSteps >= trace.steps.length ? '这条任务能跑通' : '伙伴正在走一遍'}</h2><p className="mt-1 text-[8px] leading-relaxed text-black/55">{trace.note}</p></span><span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full border-2 border-black ${visibleSteps >= trace.steps.length ? 'bg-[#00ff88]' : 'bg-white'}`}>{visibleSteps >= trace.steps.length ? <Check className="h-6 w-6" strokeWidth={3} /> : <Footprints className="h-6 w-6 animate-pulse" />}</span></div></div>
         <RunStatus trace={trace} visibleSteps={visibleSteps} />
-        {visibleSteps >= trace.steps.length && <div className="mt-3 border-[3px] border-black bg-[#7cff6b] p-4 shadow-[5px_5px_0_#000]"><small className="font-pixel text-[6px]">COMPILED · {compiled?.nodes.length || 0} STEPS · {compiled?.permissions.length || 0} PERMISSIONS</small><h3 className="mt-1.5 text-[18px] font-black">{saved ? '已经装进 MY SKILLS' : '保存成你的 Skill'}</h3><p className="mt-1 text-[8px] leading-relaxed text-black/55">{saved ? '以后可以从 MY SKILLS 打开、修改和再次试跑。' : '任务图、权限清单和本次 Evidence 会一起保存在本机。'}</p><button type="button" disabled={saved} onClick={save} className="mt-3 flex w-full items-center justify-center gap-2 border-2 border-black bg-white px-3 py-3 font-pixel text-[7px] shadow-[3px_3px_0_#000] disabled:bg-white/60 disabled:text-black/45 disabled:shadow-none">{saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}{saved ? '已保存到 MY SKILLS' : '保存到 MY SKILLS'}</button></div>}
+        {visibleSteps >= trace.steps.length && <div className="mt-3 border-[3px] border-black bg-[#00ff88] p-3"><small className="font-pixel text-[6px]">已编译 · {compiled?.nodes.length || 0} 个步骤 · {compiled?.permissions.length || 0} 项权限</small><h3 className="mt-1.5 text-[17px] font-black">{saved ? '已经装进我的技能' : '保存成你的技能'}</h3><p className="mt-1 text-[8px] leading-relaxed text-black/55">{saved ? '以后可以从“我的技能”打开、修改和再次试运行。' : '任务图、权限清单和本次证据会一起保存在本机。'}</p><button type="button" disabled={saved} onClick={save} className="mt-3 flex w-full items-center justify-center gap-2 border-2 border-black bg-white px-3 py-3 font-pixel text-[7px] disabled:bg-white/60 disabled:text-black/45">{saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}{saved ? '已保存到我的技能' : '保存到我的技能'}</button></div>}
       </section>}
     </div>
-    <footer className="shrink-0 border-t-[3px] border-black bg-white p-2.5"><div className="mx-auto max-w-[760px]">
-      {stage === 'sketch' && <button type="button" disabled={draft.nodes.length === 0} onClick={showStructure} className="flex w-full items-center justify-center gap-2 border-2 border-black bg-black px-3 py-3 font-pixel text-[7px] text-[#7cff6b] shadow-[3px_3px_0_#7cff6b] disabled:opacity-30"><WandSparkles className="h-4 w-4" />让 FROST 把草图变成任务 <ArrowRight className="h-4 w-4" /></button>}
-      {stage === 'structure' && <div className="grid grid-cols-[92px_1fr] gap-2"><button type="button" onClick={() => setStage('sketch')} className="flex items-center justify-center gap-1 border-2 border-black bg-white px-2 py-3 font-pixel text-[6px]"><ArrowLeft className="h-3.5 w-3.5" />再摆摆</button><button type="button" disabled={!compileResult.ok} onClick={startPreview} className="flex items-center justify-center gap-2 border-2 border-black bg-[#7cff6b] px-2 py-3 font-pixel text-[7px] shadow-[3px_3px_0_#000] disabled:bg-black/20 disabled:shadow-none"><Play className="h-4 w-4" fill="currentColor" />交给 SKILL TASKMASTER</button></div>}
+
+    <div className="shrink-0 border-t-[3px] border-black bg-white p-2.5">
+      {stage === 'sketch' && <button type="button" disabled={!goalReady || !compileResult.ok} onClick={showStructure} className="flex w-full items-center justify-center gap-2 border-2 border-black bg-black px-3 py-3 font-pixel text-[7px] text-[#7CFF6B] disabled:opacity-30"><WandSparkles className="h-4 w-4" />编译为技能图 <ArrowRight className="h-4 w-4" /></button>}
+      {stage === 'structure' && <div className="grid grid-cols-[92px_1fr] gap-2"><button type="button" onClick={() => setStage('sketch')} className="flex items-center justify-center gap-1 border-2 border-black bg-white px-2 py-3 font-pixel text-[6px]"><ArrowLeft className="h-3.5 w-3.5" />再摆摆</button><button type="button" disabled={!compileResult.ok} onClick={startPreview} className="flex items-center justify-center gap-2 border-2 border-black bg-[#00ff88] px-2 py-3 font-pixel text-[7px] disabled:bg-black/20"><Play className="h-4 w-4" fill="currentColor" />交给 SKILL TASKMASTER</button></div>}
       {stage === 'run' && <button type="button" onClick={() => setStage('structure')} className="flex w-full items-center justify-center gap-2 border-2 border-black bg-white px-3 py-3 font-pixel text-[7px]"><ArrowLeft className="h-4 w-4" />返回检查结构</button>}
-    </div></footer>
+    </div>
+    {selectedBlock && <AbilityCardDialog
+      key={selectedBlock.capability}
+      block={selectedBlock}
+      visualStyle={visualStyle}
+      onClose={() => setSelectedCapability(null)}
+      onAdd={() => { addBlock(selectedBlock.capability); setSelectedCapability(null); }}
+    />}
   </div>;
 }
